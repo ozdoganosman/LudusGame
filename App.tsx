@@ -6,6 +6,7 @@ import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-cont
 
 import { FIELD_H, FIELD_W, START_LIVES } from './src/engine/config';
 import { Game } from './src/engine/game';
+import { NEUTRAL } from './src/engine/input';
 import type { Input } from './src/engine/types';
 import { GameCanvas } from './src/ui/GameCanvas';
 import { Hud } from './src/ui/Hud';
@@ -19,7 +20,6 @@ type Mode = 'menu' | 'playing' | 'paused' | 'levelClear' | 'gameOver';
 
 const STICK_HEIGHT = 160;
 const HUD_HEIGHT = 96;
-const NEUTRAL: Input = { dx: 0, dy: 0 };
 
 /** Dokunsal geri bildirim isteğe bağlıdır; desteklenmeyen cihazda sessizce geçilir. */
 function buzz(run: () => Promise<void>) {

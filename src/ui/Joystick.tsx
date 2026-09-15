@@ -1,33 +1,12 @@
 import { memo, useMemo, useRef, useState } from 'react';
 import { PanResponder, StyleSheet, View } from 'react-native';
 
+import { NEUTRAL, snapToEight } from '../engine/input';
 import type { Input } from '../engine/types';
 import { palette } from './palette';
 
-/** Parmağın yön saymaya başlaması için gereken en küçük kayma (px). */
-const DEADZONE = 16;
 /** Topuzun merkezden çıkabileceği en büyük uzaklık (px). */
 const KNOB_RANGE = 54;
-
-const EIGHT_WAY: Input[] = [
-  { dx: 1, dy: 0 },
-  { dx: 1, dy: 1 },
-  { dx: 0, dy: 1 },
-  { dx: -1, dy: 1 },
-  { dx: -1, dy: 0 },
-  { dx: -1, dy: -1 },
-  { dx: 0, dy: -1 },
-  { dx: 1, dy: -1 },
-];
-
-const NEUTRAL: Input = { dx: 0, dy: 0 };
-
-/** Kayma vektörünü 8 yöne yuvarlar; ölü bölge içindeyse durma döner. */
-export function snapToEight(dx: number, dy: number): Input {
-  if (Math.hypot(dx, dy) < DEADZONE) return NEUTRAL;
-  const sector = Math.round(Math.atan2(dy, dx) / (Math.PI / 4));
-  return EIGHT_WAY[((sector % 8) + 8) % 8];
-}
 
 type Stick = {
   origin: { x: number; y: number };

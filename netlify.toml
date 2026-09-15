@@ -1,0 +1,14 @@
+# Netlify: depoyu bağladıktan sonra ek ayar gerekmez.
+# Netlify bağımlılıkları kendisi kurar, sonra bu komutu çalıştırır.
+[build]
+  command = "npm run build:web"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# Tek sayfalık statik oyun: bilinmeyen yollar da index.html'e düşsün.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

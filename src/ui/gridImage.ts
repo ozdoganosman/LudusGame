@@ -15,10 +15,11 @@ export function pixelBufferSize(field: Field): number {
 
 /**
  * Alanı RGBA piksel tamponuna yazar: her hücre bir piksel.
+ * Uint8ClampedArray da kabul edilir, böylece web'de doğrudan ImageData'ya yazılabilir.
  * Ele geçirilmiş alanın boşa bakan kenarları vurgulanır, böylece
  * sınır çizgisi okunur olur.
  */
-export function writeFieldPixels(field: Field, out: Uint8Array): void {
+export function writeFieldPixels(field: Field, out: Uint8Array | Uint8ClampedArray): void {
   const { w, h, cells } = field;
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {

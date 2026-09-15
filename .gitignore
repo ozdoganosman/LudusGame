@@ -42,3 +42,6 @@ yarn-error.*
 
 # Önizleme aracının kök dizine yazdığı varsayılan çıktı
 /preview.png
+
+# Web derleme çıktısı
+/dist

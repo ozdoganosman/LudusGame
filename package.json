@@ -10,8 +10,10 @@
     "web": "expo start --web",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "node --test --experimental-strip-types src/engine/__tests__/",
-    "preview": "node --experimental-strip-types tools/preview.ts"
+    "test": "tsx --test src/engine/__tests__/*.test.ts",
+    "preview": "tsx tools/preview.ts docs/preview.png",
+    "build:web": "node tools/build-web.mjs",
+    "dev:web": "node tools/build-web.mjs --serve"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",
@@ -26,6 +28,7 @@
   "devDependencies": {
     "@types/node": "^22.20.3",
     "@types/react": "~19.2.2",
+    "esbuild": "^0.28.2",
     "eslint": "^9.39.5",
     "eslint-config-expo": "~10.0.0",
     "tsx": "^4.23.13",
