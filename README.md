@@ -36,6 +36,14 @@ npm install
 npm run dev:web     # http://127.0.0.1:4173
 ```
 
+`npm run build:web` üç çıktı üretir:
+
+| Dosya | Ne işe yarar |
+| --- | --- |
+| `dist/index.html` + `dist/main.js` | Statik site (GitHub Pages, Netlify) |
+| `dist/kusat.html` | Tek dosyalık sürüm — çift tıklayıp oynanır, tek başına paylaşılabilir |
+| `dist/artifact.html` | Belge iskeletini kendisi saran ortamlar için gövde + stil |
+
 ### Mobil (Expo)
 
 ```bash
@@ -97,10 +105,12 @@ src/ui/            React Native / Skia katmanı
   gridImage.ts     Alan -> piksel dönüşümü (mobil, web ve önizleme aracı paylaşır)
   palette.ts       Tek renk kaynağı
 web/               Web sürümü: Canvas2D render + DOM arayüzü
-  index.html       Kabuk, CSS (renkleri palette'ten CSS değişkeni olarak alır)
+  body.html        Arayüz iskeleti (HUD, alan, joystick, panel)
+  styles.css       Görünüm; renkleri palette'ten CSS değişkeni olarak alır
   main.ts          Çizim, girdi (dokunmatik + klavye), HUD, ekran akışı
 tools/
-  build-web.mjs    esbuild paketleme (--serve ile yerel sunucu)
+  build-web.mjs    esbuild paketleme; üç çıktıyı tek kaynaktan oluşturur
+                   (--serve ile yerel sunucu ve izleme)
   preview.ts       Başsız oynatma + PNG kare üretimi
 App.tsx            Mobil ekran akışı (menü / oyun / duraklatma / seviye sonu / oyun sonu)
 ```

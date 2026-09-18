@@ -1,0 +1,38 @@
+<div id="app">
+  <header id="hud">
+    <div class="hud-row">
+      <div>
+        <span class="label">SEVİYE</span>
+        <strong id="level">1</strong>
+      </div>
+      <div class="score">
+        <strong id="score">0</strong>
+        <span class="label" id="high">REKOR 0</span>
+      </div>
+      <button id="pause" type="button" aria-label="Duraklat">❚❚</button>
+    </div>
+    <div class="hud-row">
+      <div class="bar"><div id="bar-fill"></div></div>
+      <span id="percent">%0.0 / %80</span>
+    </div>
+    <div id="lives"></div>
+  </header>
+
+  <main id="stage"><canvas id="field"></canvas></main>
+
+  <footer id="stick"><div id="stick-hint"></div></footer>
+</div>
+
+<div id="stick-base"></div>
+<div id="stick-knob"></div>
+
+<div id="overlay" hidden>
+  <div class="panel">
+    <h1 id="ov-title"></h1>
+    <p id="ov-sub"></p>
+    <dl id="ov-rows"></dl>
+    <p class="hint" id="ov-hint"></p>
+    <button id="ov-primary" type="button"></button>
+    <button id="ov-secondary" class="ghost" type="button" hidden></button>
+  </div>
+</div>
