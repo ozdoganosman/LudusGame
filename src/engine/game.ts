@@ -201,11 +201,12 @@ export class Game {
         return;
       }
       // Boş alana ilk adım: iz başlar.
+      if (this.diagonalCorner(dx, dy) !== 'ok') return;
       this.trailStart = { x: player.x, y: player.y };
       player.drawing = true;
       this.previousCell = { x: player.x, y: player.y };
       this.events.push({ type: 'trail-start' });
-      this.advanceTrail(tx, ty, dx, dy);
+      this.advanceTrail(tx, ty);
       return;
     }
 
@@ -223,30 +224,43 @@ export class Game {
       return;
     }
 
-    this.advanceTrail(tx, ty, dx, dy);
-  }
-
-  /** Hedef hücreye ilerler ve izi işaretler; çapraz adımda köşe hücresi de dolar. */
-  private advanceTrail(tx: number, ty: number, dx: number, dy: number): void {
-    const { field, player } = this;
-    if (dx !== 0 && dy !== 0) {
-      // İzin 4 komşuluk üzerinden bağlı kalması için köşeyi kapatıyoruz.
-      const corner = field.get(player.x + dx, player.y) === EMPTY
-        ? { x: player.x + dx, y: player.y }
-        : field.get(player.x, player.y + dy) === EMPTY
-          ? { x: player.x, y: player.y + dy }
-          : null;
-      if (corner) {
-        field.set(corner.x, corner.y, TRAIL);
-        this.trail.push(corner);
-      }
+    const corner = this.diagonalCorner(dx, dy);
+    if (corner === 'block') return;
+    if (corner === 'die') {
+      this.die('self');
+      return;
     }
 
+    this.advanceTrail(tx, ty);
+  }
+
+  /**
+   * Hedef hücreye ilerler ve izi işaretler. İz tek hücre kalınlığındadır:
+   * çapraz hücre zinciri 4 komşulukta zaten geçilmez bir duvar oluşturur,
+   * bu yüzden köşeyi doldurmaya gerek yok.
+   */
+  private advanceTrail(tx: number, ty: number): void {
+    const { field, player } = this;
     this.previousCell = { x: player.x, y: player.y };
     player.x = tx;
     player.y = ty;
     field.set(tx, ty, TRAIL);
     this.trail.push({ x: tx, y: ty });
+  }
+
+  /**
+   * Çapraz adımda köşeden sızmayı engeller.
+   * İki dik komşu da izse gemi kendi çizgisini keser (ölüm); ikisi de doluysa
+   * duvarın köşesinden geçilemez (adım iptal). Sonuç: 'die' | 'block' | 'ok'.
+   */
+  private diagonalCorner(dx: number, dy: number): 'die' | 'block' | 'ok' {
+    if (dx === 0 || dy === 0) return 'ok';
+    const { field, player } = this;
+    const sideX = field.inBounds(player.x + dx, player.y) ? field.get(player.x + dx, player.y) : FILLED;
+    const sideY = field.inBounds(player.x, player.y + dy) ? field.get(player.x, player.y + dy) : FILLED;
+    if (sideX === TRAIL && sideY === TRAIL) return 'die';
+    if (sideX === FILLED && sideY === FILLED) return 'block';
+    return 'ok';
   }
 
   private finishTrail(): void {

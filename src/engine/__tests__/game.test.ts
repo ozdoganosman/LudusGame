@@ -64,17 +64,59 @@ test('izi çerçeveye bağlamak patronsuz bölgeyi ele geçirir', () => {
   assert.ok(Math.abs(game.percent - (112 / 196) * 100) < 1e-9);
 });
 
-test('çapraz iz 4 komşuluk üzerinden bağlı kalır', () => {
+test('çapraz iz tek hücre kalınlığındadır', () => {
   const game = setupGame();
   stepMany(game, { dx: -1, dy: -1 }, 5);
 
-  assert.ok(game.trail.length >= 5);
+  assert.equal(game.trail.length, 5, 'her çapraz adım tek hücre bırakır');
   for (let i = 1; i < game.trail.length; i++) {
     const previous = game.trail[i - 1];
     const current = game.trail[i];
-    const distance = Math.abs(previous.x - current.x) + Math.abs(previous.y - current.y);
-    assert.equal(distance, 1, `iz ${i}. adımda kopuk: köşe hücresi doldurulmamış`);
+    assert.equal(Math.abs(previous.x - current.x), 1);
+    assert.equal(Math.abs(previous.y - current.y), 1);
   }
+});
+
+test('çapraz izle kapatmak bölgeyi sızdırmadan ele geçirir', () => {
+  const game = setupGame();
+  // Alt çerçeveden çapraz çıkıp çapraz inerek üçgen bir dilim kapat.
+  stepMany(game, { dx: -1, dy: -1 }, 5);
+  const events = stepMany(game, { dx: -1, dy: 1 }, 6);
+  const captures = eventsOfType(events, 'capture');
+
+  assert.equal(captures.length, 1);
+  assert.ok(captures[0].cells > 5, 'iz dışında da hücre kazanılmalı');
+  assert.equal(game.field.get(11, 7), EMPTY, 'patronun bölgesi dolmamalı');
+  assert.equal(game.field.recount(), game.field.captured, 'sayaç tutarlı');
+});
+
+test('kendi izini çaprazdan kesmek öldürür', () => {
+  const game = setupGame();
+  stepMany(game, { dx: 0, dy: -1 }, 2); // (8,14), (8,13)
+  stepOnce(game, { dx: 1, dy: -1 }); // (9,12)
+  stepOnce(game, { dx: -1, dy: 0 }); // (8,12)
+
+  // Hedef (9,13) boş ama iki dik komşusu da iz: çizgiyi çaprazdan kesme.
+  const events = stepOnce(game, { dx: 1, dy: 1 });
+  const deaths = eventsOfType(events, 'death');
+
+  assert.equal(deaths.length, 1);
+  assert.equal(deaths[0].cause, 'self');
+});
+
+test('duvarın köşesinden çapraz sızılamaz', () => {
+  const game = setupGame();
+  game.field.set(8, 12, FILLED);
+  game.field.set(9, 12, FILLED);
+  game.field.set(8, 13, FILLED);
+  game.player.x = 8;
+  game.player.y = 12;
+
+  stepOnce(game, { dx: 1, dy: 1 }); // (9,13) boş ama köşe kapalı
+
+  assert.equal(game.player.x, 8);
+  assert.equal(game.player.y, 12);
+  assert.equal(game.player.drawing, false);
 });
 
 test('gemi ele geçirilmiş bloğun içine giremez', () => {
