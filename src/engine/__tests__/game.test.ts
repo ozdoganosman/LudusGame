@@ -77,6 +77,54 @@ test('çapraz iz 4 komşuluk üzerinden bağlı kalır', () => {
   }
 });
 
+test('gemi ele geçirilmiş bloğun içine giremez', () => {
+  const game = setupGame();
+  // Alt çerçevenin üstüne 3 hücre kalınlığında dolu bir blok koy.
+  for (let y = 12; y <= 14; y++) {
+    for (let x = 1; x <= 14; x++) game.field.set(x, y, FILLED);
+  }
+  game.player.x = 5;
+  game.player.y = 12;
+
+  assert.equal(game.field.isEdge(5, 12), true, 'üst sıra kenar hücresi');
+  assert.equal(game.field.isEdge(5, 13), false, 'alt sıra bloğun içi');
+
+  stepOnce(game, { dx: 0, dy: 1 }); // içeri doğru: engellenmeli
+
+  assert.equal(game.player.y, 12, 'gemi bloğun içine girmemeli');
+
+  stepOnce(game, { dx: 1, dy: 0 }); // kenar boyunca: serbest
+
+  assert.equal(game.player.x, 6);
+  assert.equal(game.player.y, 12);
+});
+
+test('gemi kenardan boş alana dalabilir', () => {
+  const game = setupGame();
+  for (let y = 12; y <= 14; y++) {
+    for (let x = 1; x <= 14; x++) game.field.set(x, y, FILLED);
+  }
+  game.player.x = 5;
+  game.player.y = 12;
+
+  stepOnce(game, { dx: 0, dy: -1 });
+
+  assert.equal(game.player.y, 11);
+  assert.equal(game.player.drawing, true);
+});
+
+test('kapatma gemiyi içeride bırakırsa kenara çekilir', () => {
+  const game = setupGame();
+  stepMany(game, { dx: 0, dy: -1 }, 15); // (8,15) -> (8,0), iz kapanır
+
+  assert.equal(game.player.drawing, false);
+  assert.equal(
+    game.field.isEdge(game.player.x, game.player.y),
+    true,
+    'gemi kapatma sonrası kenar hücresinde olmalı'
+  );
+});
+
 test('kendi izine girmek canı götürür', () => {
   const game = setupGame();
   stepMany(game, { dx: 0, dy: -1 }, 5); // yukarı: (8,14)...(8,10)

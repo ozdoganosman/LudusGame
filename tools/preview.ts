@@ -7,6 +7,7 @@ import { writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { Game } from '../src/engine/game';
+import { EMPTY } from '../src/engine/types';
 import type { Enemy, Input } from '../src/engine/types';
 import { writeFieldPixels } from '../src/ui/gridImage';
 import { hexToRgb, palette } from '../src/ui/palette';
@@ -26,79 +27,143 @@ function nearestEnemyDistance(game: Game): number {
   return nearest;
 }
 
+/** Saat yönünde 8 yön; kenar boyunca yürürken sırayla denenir. */
+const DIRECTIONS: Input[] = [
+  { dx: 0, dy: -1 },
+  { dx: 1, dy: -1 },
+  { dx: 1, dy: 0 },
+  { dx: 1, dy: 1 },
+  { dx: 0, dy: 1 },
+  { dx: -1, dy: 1 },
+  { dx: -1, dy: 0 },
+  { dx: -1, dy: -1 },
+];
+
+/** Bu yöndeki komşu, geminin yürüyebileceği bir kenar hücresi mi? */
+function walkable(game: Game, step: Input): boolean {
+  return game.field.isEdge(game.player.x + step.dx, game.player.y + step.dy);
+}
+
+/** Geminin bulunduğu kenardan boş alana bakan ilk dik yön. */
+function diveDirection(game: Game): Input | null {
+  const { field, player } = game;
+  const options: Input[] = [
+    { dx: 0, dy: -1 },
+    { dx: 1, dy: 0 },
+    { dx: 0, dy: 1 },
+    { dx: -1, dy: 0 },
+  ];
+  for (const step of options) {
+    const x = player.x + step.dx;
+    const y = player.y + step.dy;
+    if (field.inBounds(x, y) && field.get(x, y) === EMPTY) return step;
+  }
+  return null;
+}
+
+/** Bu yönde kaç hücre boş alan var (dalışın ne kadar derin olabileceği). */
+function freeRun(game: Game, step: Input): number {
+  const { field, player } = game;
+  let run = 0;
+  let x = player.x + step.dx;
+  let y = player.y + step.dy;
+  while (field.inBounds(x, y) && field.get(x, y) === EMPTY) {
+    run++;
+    x += step.dx;
+    y += step.dy;
+  }
+  return run;
+}
+
 /**
- * Alanın dibinden dikdörtgen dilimler kapatan bot.
- * Düşman yaklaşınca çizimi bırakıp çerçeveye kaçar; böylece hedef yüzdenin
- * gerçekten ulaşılabilir olduğunu da sınar.
+ * Kenar hattında dolaşıp dikdörtgen dilimler kapatan bot.
+ * Gemi ele geçirilmiş bloğun içine giremediği için yürüyüş, hattı takip eden
+ * bir "duvar izleme" ile yapılır; bu aynı zamanda hattın dolaşılabilir
+ * olduğunu da sınar. Düşman yaklaşınca dalış yarıda bırakılıp geri dönülür.
  */
 function createBot() {
-  let stage: 'travel' | 'inward' | 'across' | 'outward' = 'travel';
-  let targetX = 8;
-  let depth = 18;
-  let width = 10;
-  let side = 1;
+  let stage: 'walk' | 'dive' | 'across' | 'back' = 'walk';
+  let walkDir: Input = { dx: -1, dy: 0 };
+  let dive: Input = { dx: 0, dy: -1 };
+  let across: Input = { dx: 1, dy: 0 };
+  let stepsLeft = 0;
+  let width = 8;
+  let walked = 0;
   let plan = 0;
-  let waited = 0;
-  /** Dalış hedefi: derinlik oyuncunun bulunduğu sınırdan ölçülür. */
-  let targetY = 0;
+
+  /** Kenar boyunca bir adım: mümkünse aynı yönde, değilse en az saparak. */
+  const followEdge = (game: Game): Input => {
+    const current = DIRECTIONS.findIndex((d) => d.dx === walkDir.dx && d.dy === walkDir.dy);
+    const order = [0, 1, -1, 2, -2, 3, -3, 4];
+    for (const turn of order) {
+      const candidate = DIRECTIONS[(current + turn + 8) % 8];
+      if (walkable(game, candidate)) {
+        walkDir = candidate;
+        return candidate;
+      }
+    }
+    return { dx: 0, dy: 0 };
+  };
 
   return function nextInput(game: Game): Input {
-    const { player, field } = game;
     if (game.phase !== 'playing') return { dx: 0, dy: 0 };
+    const { player } = game;
 
-    // Çizim sırasında düşman yaklaşırsa izi kapatmak için çerçeveye dön.
+    if (!player.drawing && stage !== 'walk') {
+      // İz kapandı: yeni tur.
+      plan++;
+      stage = 'walk';
+      walked = 0;
+      width = 6 + ((plan * 5) % 14);
+    }
+
     if (player.drawing && nearestEnemyDistance(game) < 7) {
-      // Kendi izine girmemek için önce yana çık, sonra geri in.
-      if (stage === 'inward') {
+      // Kendi izine girmemek için önce yana çık, sonra geri dön.
+      if (stage === 'dive') {
         stage = 'across';
-        return { dx: side, dy: 0 };
+        stepsLeft = 2;
+        return across;
       }
-      stage = 'outward';
-      return { dx: 0, dy: 1 };
+      stage = 'back';
+      return { dx: -dive.dx, dy: -dive.dy };
     }
 
     switch (stage) {
-      case 'travel': {
-        if (player.x !== targetX) return { dx: Math.sign(targetX - player.x), dy: 0 };
-        // Yakında düşman varken bekle, ama sonsuza kadar değil.
-        if (nearestEnemyDistance(game) < 10 && waited < 90) {
-          waited++;
-          return { dx: 0, dy: 0 };
+      case 'walk': {
+        walked++;
+        const depth = 10 + ((plan * 7) % 34);
+        const candidate = diveDirection(game);
+        const safe = nearestEnemyDistance(game) > 11;
+        // Yeterince derin ve güvenli bir nokta bulunca dal.
+        if (candidate && safe && freeRun(game, candidate) >= depth && walked > 4) {
+          dive = candidate;
+          across = { dx: -candidate.dy, dy: candidate.dx };
+          if (plan % 2 === 0) across = { dx: -across.dx, dy: -across.dy };
+          stage = 'dive';
+          stepsLeft = depth;
+          return dive;
         }
-        waited = 0;
-        stage = 'inward';
-        targetY = Math.max(1, player.y - depth);
-        return { dx: 0, dy: -1 };
+        return followEdge(game);
       }
-      case 'inward': {
-        if (player.y > targetY) return { dx: 0, dy: -1 };
+      case 'dive': {
+        stepsLeft--;
+        if (stepsLeft > 0 && freeRun(game, dive) > 0) return dive;
         stage = 'across';
-        return { dx: side, dy: 0 };
+        stepsLeft = width;
+        return across;
       }
       case 'across': {
-        const goal = clamp(targetX + width * side, 1, field.w - 2);
-        if (player.x !== goal) return { dx: Math.sign(goal - player.x), dy: 0 };
-        stage = 'outward';
-        return { dx: 0, dy: 1 };
+        stepsLeft--;
+        if (stepsLeft > 0 && freeRun(game, across) > 0) return across;
+        stage = 'back';
+        return { dx: -dive.dx, dy: -dive.dy };
       }
-      case 'outward': {
-        if (player.drawing) return { dx: 0, dy: 1 };
-        // Dilim kapandı: sıradaki hedefi seç.
-        plan++;
-        stage = 'travel';
-        side = plan % 2 === 0 ? 1 : -1;
-        targetX = clamp(3 + ((plan * 11) % (field.w - 6)), 2, field.w - 3);
-        depth = 12 + ((plan * 9) % 46);
-        width = 6 + ((plan * 5) % 16);
-        return { dx: 0, dy: 0 };
-      }
+      case 'back':
+        return { dx: -dive.dx, dy: -dive.dy };
     }
   };
 }
 
-function clamp(value: number, min: number, max: number): number {
-  return value < min ? min : value > max ? max : value;
-}
 
 type Snapshot = { pixels: Uint8Array; width: number; height: number; caption: string };
 

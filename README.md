@@ -16,7 +16,8 @@ geri kalanı bir hamlede senin olur. Sıradan düşmanlar kapattığın bölgede
 | Kural | Ayrıntı |
 | --- | --- |
 | Hedef | İç alanın **%80'ini** ele geçirmek |
-| Güvenli bölge | Ele geçirilmiş alanda dururken düşmanlar sana değemez |
+| Hareket | Gemi yalnızca ele geçirilmiş alanın **kenarında** yürür; bloğun içine giremez |
+| Güvenli bölge | Kenarda dururken düşmanlar sana değemez |
 | Risk | Boş alana girdiğin anda iz bırakmaya başlarsın ve açıktasın |
 | Ölüm | Düşman izine veya sana değerse, ya da kendi izine girersen |
 | Patron (pembe) | Bulunduğu bölge ele geçirilemez, her yerde tehlikelidir |
@@ -120,6 +121,10 @@ App.tsx            Mobil ekran akışı (menü / oyun / duraklatma / seviye sonu
 - **Motor React'ten bağımsız.** Tüm oyun mantığı `src/engine` içinde saf TypeScript;
   bu yüzden cihaz olmadan `node` ile test edilebiliyor, web sürümü aynı motoru
   paylaşıyor ve PNG önizlemesi üretilebiliyor.
+- **Kenar hattı.** Volfied'daki gibi gemi ele geçirilmiş bölgenin dış hattında
+  hareket eder (`Field.isEdge`: boş alana komşu dolu hücreler). Kapatma gemiyi
+  bloğun içinde bırakırsa en yakın kenara çekilir. Kenar hücresinin tanımı gereği
+  her zaman boş bir komşusu vardır, yani gemi asla kilitlenmez.
 - **Ele geçirme.** İz kapandığında boş hücreler 4 komşuluk üzerinden bölgelere ayrılır;
   patronun bulunmadığı her bölge doldurulur. 4 komşuluk seçilmesi izin çapraz
   hareketlerde de sızdırmaz bir duvar olmasını sağlar.

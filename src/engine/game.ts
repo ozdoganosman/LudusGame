@@ -194,6 +194,8 @@ export class Game {
 
     if (!player.drawing) {
       if (target === FILLED) {
+        // Gemi ele geçirilmiş alanın yalnızca kenarında yürür; bloğun içine giremez.
+        if (!field.isEdge(tx, ty)) return;
         player.x = tx;
         player.y = ty;
         return;
@@ -260,6 +262,8 @@ export class Game {
     this.trail = [];
     this.previousCell = null;
     this.player.drawing = false;
+    // Kapatılan bölge gemiyi içeride bıraktıysa en yakın kenara çek.
+    this.moveToNearestEdge();
     this.events.push({
       type: 'capture',
       cells: result.cells,
@@ -428,9 +432,9 @@ export class Game {
   }
 
   private respawn(): void {
-    const spot = this.field.get(this.trailStart.x, this.trailStart.y) === FILLED
+    const spot = this.field.isEdge(this.trailStart.x, this.trailStart.y)
       ? this.trailStart
-      : this.findBorderSpot();
+      : this.findEdgeSpot();
     this.player.x = spot.x;
     this.player.y = spot.y;
     this.player.dx = 0;
@@ -440,14 +444,14 @@ export class Game {
     this.events.push({ type: 'respawn' });
   }
 
-  /** İzin başladığı yer kaybolduysa ele geçirilmiş en yakın hücreyi bulur. */
-  private findBorderSpot(): Vec {
+  /** İzin başladığı yer kenar olmaktan çıktıysa en yakın kenar hücresini bulur. */
+  private findEdgeSpot(): Vec {
     const { field } = this;
     let best: Vec = { x: Math.floor(field.w / 2), y: field.h - 1 };
     let bestDistance = Infinity;
     for (let y = 0; y < field.h; y++) {
       for (let x = 0; x < field.w; x++) {
-        if (field.get(x, y) !== FILLED) continue;
+        if (!field.isEdge(x, y)) continue;
         const distance = Math.hypot(x - this.trailStart.x, y - this.trailStart.y);
         if (distance < bestDistance) {
           bestDistance = distance;
@@ -456,6 +460,33 @@ export class Game {
       }
     }
     return best;
+  }
+
+  /**
+   * Gemi ele geçirilmiş bloğun içinde kaldıysa (kapatma sonrası olabilir)
+   * en yakın kenar hücresine taşır. Kenar kalmadıysa seviye zaten bitmiştir.
+   */
+  private moveToNearestEdge(): void {
+    const { field, player } = this;
+    if (field.isEdge(player.x, player.y)) return;
+
+    let best: Vec | null = null;
+    let bestDistance = Infinity;
+    for (let y = 0; y < field.h; y++) {
+      for (let x = 0; x < field.w; x++) {
+        if (!field.isEdge(x, y)) continue;
+        const distance = (x - player.x) ** 2 + (y - player.y) ** 2;
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          best = { x, y };
+        }
+      }
+    }
+
+    if (best) {
+      player.x = best.x;
+      player.y = best.y;
+    }
   }
 
   private checkLevelClear(): void {

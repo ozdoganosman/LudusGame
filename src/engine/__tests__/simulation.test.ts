@@ -60,6 +60,13 @@ test('60 saniyelik rastgele oynanışta oyun tutarlı kalır', () => {
         cell === FILLED || cell === TRAIL,
         `oyuncu ${frame}. karede geçersiz hücrede: ${cell}`
       );
+      // Çizim yapmıyorsa ele geçirilmiş alanın kenarında olmalı, içinde değil.
+      if (cell === FILLED) {
+        assert.ok(
+          game.field.isEdge(game.player.x, game.player.y),
+          `oyuncu ${frame}. karede bloğun içinde kaldı`
+        );
+      }
     }
 
     for (const enemy of game.enemies) {

@@ -30,7 +30,7 @@ export function writeFieldPixels(field: Field, out: Uint8Array | Uint8ClampedArr
       if (cell === TRAIL) {
         rgb = TRAIL_RGB;
       } else if (cell === FILLED) {
-        rgb = isEdge(field, x, y) ? FILLED_EDGE_RGB : FILLED_RGB;
+        rgb = field.isEdge(x, y) ? FILLED_EDGE_RGB : FILLED_RGB;
       } else if (cell === EMPTY) {
         // Boş alana seyrek nokta dokusu: hareket hissi ve derinlik için.
         rgb = x % 8 === 4 && y % 8 === 4 ? EMPTY_DOT_RGB : EMPTY_RGB;
@@ -43,14 +43,4 @@ export function writeFieldPixels(field: Field, out: Uint8Array | Uint8ClampedArr
       out[offset + 3] = 255;
     }
   }
-}
-
-/** Dolu hücrenin boş alana veya ize komşu olup olmadığı. */
-function isEdge(field: Field, x: number, y: number): boolean {
-  const { w, h, cells } = field;
-  if (x > 0 && cells[y * w + x - 1] !== FILLED) return true;
-  if (x < w - 1 && cells[y * w + x + 1] !== FILLED) return true;
-  if (y > 0 && cells[(y - 1) * w + x] !== FILLED) return true;
-  if (y < h - 1 && cells[(y + 1) * w + x] !== FILLED) return true;
-  return false;
 }
