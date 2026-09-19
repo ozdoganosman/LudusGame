@@ -7,7 +7,9 @@ import { FIELD_H, FIELD_W, START_LIVES } from '../src/engine/config';
 import { Game } from '../src/engine/game';
 import { NEUTRAL, snapToEight } from '../src/engine/input';
 import type { Enemy, Input } from '../src/engine/types';
-import { writeFieldPixels } from '../src/ui/gridImage';
+import { territoryOutline } from '../src/ui/contour';
+import type { Point } from '../src/ui/contour';
+import { writeBackgroundPixels } from '../src/ui/gridImage';
 import { palette } from '../src/ui/palette';
 
 type Mode = 'menu' | 'playing' | 'paused' | 'levelClear' | 'gameOver';
@@ -66,12 +68,17 @@ let gridVersion = -1;
 let hudTimer = 0;
 let summary = { level: 1, percent: 0, score: 0, bonus: 0 };
 
-// Grid, hücre başına bir piksel olarak çizilip büyütülür: keskin piksel görünümü.
-const gridCanvas = document.createElement('canvas');
-gridCanvas.width = FIELD_W;
-gridCanvas.height = FIELD_H;
-const gridContext = require2d(gridCanvas);
-const gridImage = gridContext.createImageData(FIELD_W, FIELD_H);
+// Zemin (boş alan + nokta dokusu) bir kez üretilir, her karede ölçeklenerek çizilir.
+const backgroundCanvas = document.createElement('canvas');
+backgroundCanvas.width = FIELD_W;
+backgroundCanvas.height = FIELD_H;
+const backgroundContext = require2d(backgroundCanvas);
+const backgroundImage = backgroundContext.createImageData(FIELD_W, FIELD_H);
+writeBackgroundPixels(game.field, backgroundImage.data);
+backgroundContext.putImageData(backgroundImage, 0, 0);
+
+/** Ele geçirilmiş alanın sınırı; yalnızca hücreler değişince yeniden hesaplanır. */
+let outline: Point[][] = [];
 
 function loadHighScore(): number {
   try {
@@ -114,8 +121,7 @@ window.addEventListener('resize', resize);
 
 function draw(): void {
   if (gridVersion !== game.field.version) {
-    writeFieldPixels(game.field, gridImage.data);
-    gridContext.putImageData(gridImage, 0, 0);
+    outline = territoryOutline(game.field);
     gridVersion = game.field.version;
   }
 
@@ -123,10 +129,56 @@ function draw(): void {
   const height = cell * FIELD_H;
   context.clearRect(0, 0, width, height);
   context.imageSmoothingEnabled = false;
-  context.drawImage(gridCanvas, 0, 0, width, height);
+  context.drawImage(backgroundCanvas, 0, 0, width, height);
 
+  drawTerritory();
+  drawTrail();
   for (const enemy of game.enemies) drawEnemy(enemy);
   drawPlayer();
+}
+
+/** Ele geçirilmiş alan: köşeleri pahlanmış sınır çokgeni, üstünde ince bir kenar ışığı. */
+function drawTerritory(): void {
+  if (outline.length === 0) return;
+
+  context.beginPath();
+  for (const loop of outline) {
+    loop.forEach((point, index) => {
+      const x = point.x * cell;
+      const y = point.y * cell;
+      if (index === 0) context.moveTo(x, y);
+      else context.lineTo(x, y);
+    });
+    context.closePath();
+  }
+
+  context.fillStyle = palette.filled;
+  // Çift-tek kuralı: patronun sıkıştığı boşluk delik olarak kalır.
+  context.fill('evenodd');
+  context.lineJoin = 'round';
+  context.lineWidth = Math.max(1, cell * 0.5);
+  context.strokeStyle = palette.filledEdge;
+  context.stroke();
+}
+
+/** İz: hücre merkezlerinden geçen yuvarlak uçlu bir çizgi. */
+function drawTrail(): void {
+  const trail = game.trail;
+  if (trail.length === 0) return;
+
+  context.beginPath();
+  trail.forEach((point, index) => {
+    const x = (point.x + 0.5) * cell;
+    const y = (point.y + 0.5) * cell;
+    if (index === 0) context.moveTo(x, y);
+    else context.lineTo(x, y);
+  });
+
+  context.lineCap = 'round';
+  context.lineJoin = 'round';
+  context.lineWidth = cell;
+  context.strokeStyle = palette.trail;
+  context.stroke();
 }
 
 function disc(x: number, y: number, radius: number, color: string, alpha = 1): void {

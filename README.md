@@ -103,7 +103,8 @@ src/ui/            React Native / Skia katmanı
   GameCanvas.tsx   Grid'i RGBA tamponundan Skia görüntüsüne çevirip çizer
   Joystick.tsx     PanResponder tabanlı serbest yerleşimli joystick
   Hud.tsx          Seviye, puan, yüzde çubuğu, canlar
-  gridImage.ts     Alan -> piksel dönüşümü (mobil, web ve önizleme aracı paylaşır)
+  contour.ts       Sınır çokgeni çıkarma ve merdiven köşelerini pahlama
+  gridImage.ts     Alan -> piksel dönüşümü (zemin ve ham grid görünümü)
   palette.ts       Tek renk kaynağı
 web/               Web sürümü: Canvas2D render + DOM arayüzü
   body.html        Arayüz iskeleti (HUD, alan, joystick, panel)
@@ -128,9 +129,17 @@ App.tsx            Mobil ekran akışı (menü / oyun / duraklatma / seviye sonu
 - **Ele geçirme.** İz kapandığında boş hücreler 4 komşuluk üzerinden bölgelere ayrılır;
   patronun bulunmadığı her bölge doldurulur. 4 komşuluk seçilmesi izin çapraz
   hareketlerde de sızdırmaz bir duvar olmasını sağlar.
-- **Render maliyeti.** Grid 64×96 hücre; her hücre bir piksel olarak RGBA tamponuna
-  yazılıp ölçeklenerek büyütülür (mobilde Skia görüntüsü, webde `ImageData`).
-  Tampon yalnızca hücreler değiştiğinde (`Field.version`) yeniden kodlanır.
+- **Çizim.** Oyun mantığı hücre tabanlı ama görüntü değil: ele geçirilmiş alanın
+  sınırı `src/ui/contour.ts` ile çokgen olarak çıkarılır ve merdiven köşeleri
+  pahlanır (tek hücrelik kenarların köşesi yarıdan kesilince ardışık basamaklar
+  tek bir 45° doğruya dönüşür; alan çerçevesi gibi uzun kenarların köşeleri
+  keskin kalır). Böylece çapraz kesimler pikselli merdiven yerine düz çizgi
+  görünür. Zemin (boş alan + nokta dokusu) değişmediği için bir kez kodlanır;
+  sınır çokgeni ve iz yalnızca hücreler değişince (`Field.version`) yeniden
+  kurulur, her karede değil. Aynı çokgenler iki render katmanında da kullanılır:
+  webde Canvas2D yolu, mobilde Skia `Path`.
+- **`npm run preview` ham grid görünümünü üretir** (hücre hücre boyanmış):
+  doldurma mantığını gözle denetlemek için kasıtlı olarak yumuşatılmamıştır.
 - **Zaman adımı** `MAX_DT` ile sınırlıdır; uygulama arka plandan döndüğünde oyuncu
   veya düşmanlar ışınlanmaz.
 

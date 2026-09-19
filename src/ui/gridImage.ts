@@ -44,3 +44,22 @@ export function writeFieldPixels(field: Field, out: Uint8Array | Uint8ClampedArr
     }
   }
 }
+
+/**
+ * Yalnızca zemini yazar: boş alan rengi ve nokta dokusu. Hücre durumuna
+ * bakmaz, bu yüzden bir kez üretilip her karede yeniden kullanılabilir.
+ * Ele geçirilmiş alan bunun üzerine sınır çokgeni olarak çizilir.
+ */
+export function writeBackgroundPixels(field: Field, out: Uint8Array | Uint8ClampedArray): void {
+  const { w, h } = field;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const rgb = x % 8 === 4 && y % 8 === 4 ? EMPTY_DOT_RGB : EMPTY_RGB;
+      const offset = (y * w + x) * 4;
+      out[offset] = rgb[0];
+      out[offset + 1] = rgb[1];
+      out[offset + 2] = rgb[2];
+      out[offset + 3] = 255;
+    }
+  }
+}

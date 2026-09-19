@@ -3,20 +3,23 @@ import {
   Canvas,
   Circle,
   ColorType,
+  FillType,
   FilterMode,
   Group,
   Image as SkiaImage,
   MipmapMode,
+  Path,
   Rect,
   RoundedRect,
   Skia,
 } from '@shopify/react-native-skia';
-import type { SkImage } from '@shopify/react-native-skia';
+import type { SkPath } from '@shopify/react-native-skia';
 import { memo, useMemo, useRef } from 'react';
 
 import type { Game } from '../engine/game';
 import type { Enemy } from '../engine/types';
-import { writeFieldPixels } from './gridImage';
+import { territoryOutline } from './contour';
+import { writeBackgroundPixels } from './gridImage';
 import { palette } from './palette';
 
 type Props = {
@@ -34,27 +37,61 @@ export const GameCanvas = memo(function GameCanvas({ game, cell, frame }: Props)
 
   const pixels = useMemo(() => new Uint8Array(field.w * field.h * 4), [field]);
 
-  // Grid görüntüsü pahalı: yalnızca hücreler değiştiğinde (field.version artınca)
-  // yeniden kodlanır, her karede değil.
-  const cache = useRef<{ version: number; image: SkImage | null }>({ version: -1, image: null });
-  if (cache.current.version !== field.version) {
-    writeFieldPixels(field, pixels);
+  // Zemin (boş alan + nokta dokusu) değişmez: bir kez kodlanır.
+  const background = useMemo(() => {
+    writeBackgroundPixels(field, pixels);
     const data = Skia.Data.fromBytes(pixels);
-    cache.current = {
-      version: field.version,
-      image: Skia.Image.MakeImage(
-        {
-          width: field.w,
-          height: field.h,
-          colorType: ColorType.RGBA_8888,
-          alphaType: AlphaType.Opaque,
-        },
-        data,
-        field.w * 4
-      ),
-    };
+    return Skia.Image.MakeImage(
+      {
+        width: field.w,
+        height: field.h,
+        colorType: ColorType.RGBA_8888,
+        alphaType: AlphaType.Opaque,
+      },
+      data,
+      field.w * 4
+    );
+  }, [field, pixels]);
+
+  // Sınır çokgeni ve iz, hücreler değiştiğinde (field.version) yeniden kurulur;
+  // her karede değil. İz de aynı sayaçla ilerler, çünkü iz hücreleri alana yazılır.
+  const cache = useRef<{ version: number; cell: number; territory: SkPath | null; trail: SkPath | null }>({
+    version: -1,
+    cell: 0,
+    territory: null,
+    trail: null,
+  });
+
+  if (cache.current.version !== field.version || cache.current.cell !== cell) {
+    const territory = Skia.Path.Make();
+    for (const loop of territoryOutline(field)) {
+      loop.forEach((point, index) => {
+        const x = point.x * cell;
+        const y = point.y * cell;
+        if (index === 0) territory.moveTo(x, y);
+        else territory.lineTo(x, y);
+      });
+      territory.close();
+    }
+    // Çift-tek kuralı: patronun sıkıştığı boşluk delik olarak kalır.
+    territory.setFillType(FillType.EvenOdd);
+
+    let trail: SkPath | null = null;
+    if (game.trail.length > 0) {
+      trail = Skia.Path.Make();
+      game.trail.forEach((point, index) => {
+        const x = (point.x + 0.5) * cell;
+        const y = (point.y + 0.5) * cell;
+        if (index === 0) trail?.moveTo(x, y);
+        else trail?.lineTo(x, y);
+      });
+    }
+
+    cache.current = { version: field.version, cell, territory, trail };
   }
-  const image = cache.current.image;
+
+  const territory = cache.current.territory;
+  const trail = cache.current.trail;
 
   const player = game.player;
   const px = (player.x + 0.5) * cell;
@@ -64,15 +101,39 @@ export const GameCanvas = memo(function GameCanvas({ game, cell, frame }: Props)
 
   return (
     <Canvas style={{ width, height }}>
-      {image ? (
+      {background ? (
         <SkiaImage
-          image={image}
+          image={background}
           x={0}
           y={0}
           width={width}
           height={height}
           fit="fill"
           sampling={{ filter: FilterMode.Nearest, mipmap: MipmapMode.None }}
+        />
+      ) : null}
+
+      {territory ? (
+        <>
+          <Path path={territory} color={palette.filled} style="fill" />
+          <Path
+            path={territory}
+            color={palette.filledEdge}
+            style="stroke"
+            strokeWidth={Math.max(1, cell * 0.5)}
+            strokeJoin="round"
+          />
+        </>
+      ) : null}
+
+      {trail ? (
+        <Path
+          path={trail}
+          color={palette.trail}
+          style="stroke"
+          strokeWidth={cell}
+          strokeCap="round"
+          strokeJoin="round"
         />
       ) : null}
 
