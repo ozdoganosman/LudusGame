@@ -90,6 +90,19 @@ test('çapraz izle kapatmak bölgeyi sızdırmadan ele geçirir', () => {
   assert.equal(game.field.recount(), game.field.captured, 'sayaç tutarlı');
 });
 
+test('çapraz kesimde merdiven dişleri de ele geçirilir', () => {
+  const game = setupGame();
+  stepMany(game, { dx: -1, dy: -1 }, 5); // (7,14) (6,13) (5,12) (4,11) (3,10)
+  stepMany(game, { dx: -1, dy: 1 }, 6); // sol çerçeveye inip kapat
+
+  assert.equal(game.player.drawing, false);
+  // (6,14) ele geçirilen tarafta, (7,13) ise patron tarafındaki basamak dişi:
+  // ikisi de dolmalı ki çapraz kenar tırtıklı kalmasın.
+  assert.equal(game.field.get(6, 14), FILLED);
+  assert.equal(game.field.get(7, 13), FILLED, 'basamak dişi boş kalmamalı');
+  assert.equal(game.field.recount(), game.field.captured);
+});
+
 test('kendi izini çaprazdan kesmek öldürür', () => {
   const game = setupGame();
   stepMany(game, { dx: 0, dy: -1 }, 2); // (8,14), (8,13)

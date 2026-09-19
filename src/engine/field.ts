@@ -192,6 +192,8 @@ export function closeTrail(
     }
   }
 
+  cells += fillDiagonalSteps(field, trail, enemies);
+
   const regions = findEmptyRegions(field);
   const protectedRegions = new Set<number>();
   let hasBoss = false;
@@ -233,6 +235,42 @@ export function closeTrail(
   }
 
   return { cells, trapped };
+}
+
+/**
+ * Çapraz adımların merdiven dişlerini doldurur.
+ * İki iz hücresi köşe köşe değiyorsa aralarındaki iki köşe hücresi de ele
+ * geçirilir; böylece çapraz kesim tırtıklı kalmaz. Üzerinde düşman duran hücre
+ * atlanır — patron ele geçirilmiş alanın içinde kalmasın diye.
+ * Bölge etiketlemesi bundan sonra yapıldığı için, diş doldurmanın ayırdığı
+ * patronsuz cepler de aynı turda dolar.
+ */
+function fillDiagonalSteps(field: Field, trail: readonly Vec[], enemies: readonly Enemy[]): number {
+  const occupied = new Set<number>();
+  for (const enemy of enemies) {
+    const x = Math.floor(enemy.x);
+    const y = Math.floor(enemy.y);
+    if (field.inBounds(x, y)) occupied.add(field.idx(x, y));
+  }
+
+  let filled = 0;
+  for (let i = 1; i < trail.length; i++) {
+    const previous = trail[i - 1];
+    const current = trail[i];
+    if (Math.abs(previous.x - current.x) !== 1 || Math.abs(previous.y - current.y) !== 1) continue;
+
+    for (const corner of [
+      { x: current.x, y: previous.y },
+      { x: previous.x, y: current.y },
+    ]) {
+      if (!field.inBounds(corner.x, corner.y)) continue;
+      if (field.get(corner.x, corner.y) !== EMPTY) continue;
+      if (occupied.has(field.idx(corner.x, corner.y))) continue;
+      field.set(corner.x, corner.y, FILLED);
+      filled++;
+    }
+  }
+  return filled;
 }
 
 /** Düşmanın bulunduğu bölgenin etiketi; hücre boş değilse komşulara bakar. */

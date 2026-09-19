@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
+import { findEmptyRegions } from '../field';
 import { Game } from '../game';
 import { createRng } from '../rng';
 import { FILLED, TRAIL } from '../types';
@@ -43,7 +44,16 @@ test('60 saniyelik rastgele oynanışta oyun tutarlı kalır', () => {
     const events = game.update(1 / 60, direction);
 
     for (const event of events) {
-      if (event.type === 'capture') captures++;
+      if (event.type === 'capture') {
+        captures++;
+        // Her kapatmadan sonra tek bir boş bölge kalmalı: patronunki.
+        // Aksi halde asla dolmayacak bir cep oluşmuş demektir.
+        assert.equal(
+          findEmptyRegions(game.field).cells.length,
+          1,
+          `${frame}. karede kapatma sonrası kapalı cep kaldı`
+        );
+      }
       if (event.type === 'death') deaths++;
       if (event.type === 'level-clear') game.nextLevel();
       if (event.type === 'game-over') game.start();
@@ -73,6 +83,13 @@ test('60 saniyelik rastgele oynanışta oyun tutarlı kalır', () => {
       const ex = Math.floor(enemy.x);
       const ey = Math.floor(enemy.y);
       assert.ok(game.field.inBounds(ex, ey), 'düşman alan dışına çıktı');
+      if (enemy.kind === 'boss') {
+        assert.notEqual(
+          game.field.get(ex, ey),
+          FILLED,
+          `patron ${frame}. karede ele geçirilmiş alanın içinde kaldı`
+        );
+      }
       assert.notEqual(
         game.field.get(ex, ey),
         FILLED,
