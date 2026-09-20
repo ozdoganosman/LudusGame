@@ -11,6 +11,8 @@ export type OverlayAction = {
 type Props = {
   title: string;
   subtitle?: string;
+  /** Seyir defteri kutusundaki satırlar (açılış hikâyesi). */
+  story?: string[];
   rows?: { label: string; value: string }[];
   hint?: string;
   primary: OverlayAction;
@@ -18,12 +20,22 @@ type Props = {
 };
 
 /** Oyun alanının üzerine binen menü / duraklatma / sonuç paneli. */
-export function Overlay({ title, subtitle, rows, hint, primary, secondary }: Props) {
+export function Overlay({ title, subtitle, story, rows, hint, primary, secondary }: Props) {
   return (
     <View style={styles.backdrop}>
       <View style={styles.panel}>
         <Text style={styles.title}>{title}</Text>
         {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+
+        {story && story.length > 0 ? (
+          <View style={styles.story}>
+            {story.map((line) => (
+              <Text key={line} style={styles.storyLine}>
+                {line}
+              </Text>
+            ))}
+          </View>
+        ) : null}
 
         {rows && rows.length > 0 ? (
           <View style={styles.rows}>
@@ -79,6 +91,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
     lineHeight: 20,
+  },
+  story: {
+    gap: 7,
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: palette.surfaceEdge,
+    backgroundColor: 'rgba(10, 6, 22, 0.6)',
+  },
+  storyLine: {
+    color: palette.text,
+    fontSize: 13,
+    lineHeight: 19,
   },
   rows: {
     gap: 8,

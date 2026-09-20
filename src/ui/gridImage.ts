@@ -54,12 +54,25 @@ export function writeBackgroundPixels(field: Field, out: Uint8Array | Uint8Clamp
   const { w, h } = field;
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
-      const rgb = x % 8 === 4 && y % 8 === 4 ? EMPTY_DOT_RGB : EMPTY_RGB;
+      const dot = x % 8 === 4 && y % 8 === 4;
+      const rgb = dot ? EMPTY_DOT_RGB : EMPTY_RGB;
+      // Hastalıklı dokunun gren dokusu: hücre başına küçük, deterministik sapma.
+      const grain = dot ? 0 : (hash(x, y) % 9) - 4;
       const offset = (y * w + x) * 4;
-      out[offset] = rgb[0];
-      out[offset + 1] = rgb[1];
-      out[offset + 2] = rgb[2];
+      out[offset] = clampByte(rgb[0] + grain);
+      out[offset + 1] = clampByte(rgb[1] + grain);
+      out[offset + 2] = clampByte(rgb[2] + grain * 2);
       out[offset + 3] = 255;
     }
   }
+}
+
+/** Konuma bağlı, tekrarlanabilir küçük bir sayı. */
+function hash(x: number, y: number): number {
+  const value = Math.imul(x + 1, 0x27d4eb2d) ^ Math.imul(y + 1, 0x165667b1);
+  return (value ^ (value >>> 15)) >>> 0;
+}
+
+function clampByte(value: number): number {
+  return value < 0 ? 0 : value > 255 ? 255 : value;
 }

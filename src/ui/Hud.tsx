@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { palette } from './palette';
 
 type Props = {
-  level: number;
+  mission: string;
   score: number;
   highScore: number;
   lives: number;
@@ -14,7 +14,7 @@ type Props = {
 };
 
 export const Hud = memo(function Hud({
-  level,
+  mission,
   score,
   highScore,
   lives,
@@ -28,9 +28,11 @@ export const Hud = memo(function Hud({
   return (
     <View style={styles.root}>
       <View style={styles.row}>
-        <View>
-          <Text style={styles.label}>SEVİYE</Text>
-          <Text style={styles.level}>{level}</Text>
+        <View style={styles.missionBlock}>
+          <Text style={styles.label}>GÖREV</Text>
+          <Text style={styles.mission} numberOfLines={1}>
+            {mission}
+          </Text>
         </View>
 
         <View style={styles.scoreBlock}>
@@ -86,15 +88,18 @@ const styles = StyleSheet.create({
     letterSpacing: 1.4,
     fontWeight: '600',
   },
-  level: {
+  missionBlock: {
+    flex: 1,
+    minWidth: 0,
+  },
+  mission: {
     color: palette.text,
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: '800',
-    lineHeight: 24,
+    lineHeight: 20,
   },
   scoreBlock: {
-    flex: 1,
-    alignItems: 'center',
+    alignItems: 'flex-end',
   },
   score: {
     color: palette.text,

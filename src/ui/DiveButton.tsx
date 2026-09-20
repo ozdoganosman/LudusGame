@@ -9,7 +9,7 @@ type Props = {
 };
 
 /**
- * Dalış tuşu: ele geçirilmiş alandan boş alana ancak bu basılıyken çıkılır.
+ * Işın tuşu: temizlenmiş alandan hastalıklı dokuya ancak bu basılıyken çıkılır.
  * Joystick'ten ayrı bir dokunuşla kullanılır, bu yüzden joystick alanının
  * üstünde ayrı bir öğe olarak durur.
  */
@@ -23,12 +23,12 @@ export const DiveButton = memo(function DiveButton({ onChange }: Props) {
 
   return (
     <Pressable
-      accessibilityLabel="Çiz"
+      accessibilityLabel="Işın"
       onPressIn={() => set(true)}
       onPressOut={() => set(false)}
       style={[styles.button, held && styles.held]}
     >
-      <Text style={[styles.label, held && styles.heldLabel]}>ÇİZ</Text>
+      <Text style={[styles.label, held && styles.heldLabel]}>IŞIN</Text>
     </Pressable>
   );
 });

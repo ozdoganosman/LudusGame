@@ -1,41 +1,43 @@
-# Kuşat
+# Nanogemi
 
-Volfied / Qix tarzı alan kapatma oyunu. Aynı oyun motoru iki yerde çalışır:
-**mobil** (Expo / React Native + Skia) ve **web** (Canvas2D).
+Volfied / Qix tarzı alan kapatma oyunu — ama sahne insan vücudunun içi.
 
-Kenardan içeri dalıp iz bırakırsın, izi ele geçirilmiş alana bağladığında kapattığın
-bölge senin olur. Patronun bulunduğu bölge dolmaz; onu köşeye sıkıştırırsan alanın
-geri kalanı bir hamlede senin olur. Sıradan düşmanlar kapattığın bölgede kalırsa yok olur.
+Antibiyotikler işe yaramaz olmuştur; hastalıklara karşı son savunma, hastanın kan
+dolaşımına gönderilen küçültülmüş gemilerdir. Sen o filonun kaptanısın. Dokuyu
+kenardan tarayarak temizler, ışın izini güvenli bölgeye bağladığında kapattığın
+alanı iyileştirirsin. Patojenin bulunduğu bölge temizlenmez — onu köşeye
+sıkıştırırsan dokunun geri kalanı bir hamlede iyileşir.
+
+Aynı oyun motoru iki yerde çalışır: **mobil** (Expo / React Native + Skia) ve
+**web** (Canvas2D, statik, wasm yok).
 
 ![Oynanış kareleri](docs/preview.png)
 
-*Motor başsız çalıştırılarak üretilmiş gerçek kareler (`npm run preview`).*
+*Motor başsız çalıştırılarak üretilmiş kareler (`npm run preview`) — ham grid görünümü.*
 
 ## Oynanış
 
 | Kural | Ayrıntı |
 | --- | --- |
-| Hedef | İç alanın **%80'ini** ele geçirmek |
-| Hareket | Gemi yalnızca ele geçirilmiş alanın **kenarında** yürür; bloğun içine giremez |
-| Güvenli bölge | Kenarda dururken düşmanlar sana değemez |
-| Dalış | Kenardan boş alana yalnızca **ÇİZ** tuşu basılıyken çıkılır |
-| Risk | Boş alana girdiğin anda iz bırakmaya başlarsın ve açıktasın |
-| Geri sarma | İzde geldiğin yönde geri gidersen geçtiğin hücreler silinir; başa dönersen çizim iptal olur |
-| Ölüm | Düşman izine veya sana değerse, ya da kendi izinin **başka** bir yerine girersen |
-| Patron (pembe) | Bulunduğu bölge ele geçirilemez, her yerde tehlikelidir |
-| Gezgin (turuncu) | Rastgele seker; kapatılan bölgede kalırsa yok olur ve puan verir |
-| Avcı (sarı) | 4. seviyeden sonra çıkar, seni takip eder |
+| Hedef | Dokunun **%80'ini** temizlemek |
+| Hareket | Gemi yalnızca temizlenmiş alanın **kenarında** yürür; bloğun içine giremez |
+| Işın | Kenardan hastalıklı dokuya yalnızca **IŞIN** tuşu basılıyken çıkılır |
+| Risk | Dokuya girdiğin anda iz bırakmaya başlarsın ve açıktasın |
+| Geri sarma | İzde geldiğin yönde geri gidersen geçtiğin hücreler silinir; başa dönersen iz iptal olur |
+| Ölüm | Düşman izine veya gemiye değerse, ya da kendi izinin **başka** bir yerine girersen |
+| Patojen (pembe) | Bulunduğu bölge temizlenemez, her yerde tehlikelidir |
+| Mikrop (renkli) | Rastgele seker; temizlenen bölgede kalırsa yok olur ve puan verir |
+| Virüs (mor) | 4. görevden sonra çıkar, gemiyi takip eder |
 
-İzin ucunda takılırsan geri sarabilirsin: geldiğin yöne dönmek izi hücre hücre
-siler, tamamen geri sararsan hiç alan kaybetmeden kenara dönersin. Yalnızca izin
-*başka* bir noktasına girmek ölümcüldür.
+Her seviye bir doku: kılcal damar, soluk borusu, akciğer, mide astarı, kan
+dolaşımı, lenf düğümü, sinir ağı. Liste bitince yeni bir dalga başlar.
 
 **Kontrol:** ekrana parmağını koy — dokunduğun nokta joystick merkezi olur, 8 yöne
-hareket edebilirsin; parmağını kaldırınca gemi durur. Boş alana dalmak için sağdaki
-**ÇİZ** tuşunu basılı tutman gerekir: tuşa basmadan kenardan çıkamazsın, böylece
-kazara dalış olmaz. İz başladıktan sonra tuşu bırakabilirsin. Web sürümünde klavye de
-çalışır: yön tuşları veya WASD ile hareket, **boşluk** basılı tutarak çiz, **ESC**
-ile duraklat.
+hareket edebilirsin; parmağını kaldırınca gemi durur. Hastalıklı dokuya dalmak için
+sağdaki **IŞIN** tuşunu basılı tutman gerekir; tuşa basmadan kenardan çıkamazsın,
+böylece kazara dalış olmaz. İz başladıktan sonra tuşu bırakabilirsin. Web sürümünde
+klavye de çalışır: yön tuşları veya WASD ile hareket, **boşluk** basılı tutarak ışın,
+**ESC** ile duraklat.
 
 ## Çalıştırma
 
@@ -51,7 +53,7 @@ npm run dev:web     # http://127.0.0.1:4173
 | Dosya | Ne işe yarar |
 | --- | --- |
 | `dist/index.html` + `dist/main.js` | Statik site (GitHub Pages, Netlify) |
-| `dist/kusat.html` | Tek dosyalık sürüm — çift tıklayıp oynanır, tek başına paylaşılabilir |
+| `dist/nanogemi.html` | Tek dosyalık sürüm — çift tıklayıp oynanır, tek başına paylaşılabilir |
 | `dist/artifact.html` | Belge iskeletini kendisi saran ortamlar için gövde + stil |
 
 ### Mobil (Expo)
@@ -113,6 +115,8 @@ src/ui/            React Native / Skia katmanı
   Joystick.tsx     PanResponder tabanlı serbest yerleşimli joystick
   Hud.tsx          Seviye, puan, yüzde çubuğu, canlar
   contour.ts       Sınır çokgeni çıkarma ve merdiven köşelerini pahlama
+  creatures.ts     Gemi ve düşman şekilleri (renderdan bağımsız şekil listesi)
+  story.ts         Açılış hikâyesi, görev (doku) adları, düşman tema adları
   gridImage.ts     Alan -> piksel dönüşümü (zemin ve ham grid görünümü)
   palette.ts       Tek renk kaynağı
 web/               Web sürümü: Canvas2D render + DOM arayüzü
@@ -138,6 +142,11 @@ App.tsx            Mobil ekran akışı (menü / oyun / duraklatma / seviye sonu
 - **Ele geçirme.** İz kapandığında boş hücreler 4 komşuluk üzerinden bölgelere ayrılır;
   patronun bulunmadığı her bölge doldurulur. 4 komşuluk seçilmesi izin çapraz
   hareketlerde de sızdırmaz bir duvar olmasını sağlar.
+- **Tema ve oynanış ayrı.** Motor türleri davranışa göre adlandırılır
+  (`drifter` / `hunter` / `boss`); mikrop, virüs, patojen adları ve görev
+  metinleri yalnızca arayüz katmanındadır (`src/ui/story.ts`). Karakter
+  çizimleri de renderdan bağımsız bir şekil listesidir (`src/ui/creatures.ts`),
+  böylece web ve mobil aynı gemiyi ve aynı düşmanları çizer.
 - **Çizim.** Oyun mantığı hücre tabanlı ama görüntü değil: ele geçirilmiş alanın
   sınırı `src/ui/contour.ts` ile çokgen olarak çıkarılır ve merdiven köşeleri
   pahlanır (tek hücrelik kenarların köşesi yarıdan kesilince ardışık basamaklar

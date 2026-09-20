@@ -14,6 +14,7 @@ import { Hud } from './src/ui/Hud';
 import { Joystick } from './src/ui/Joystick';
 import { Overlay } from './src/ui/Overlay';
 import { palette } from './src/ui/palette';
+import { GAME_TITLE, MISSION_BRIEF, STORY_LINES, missionFor } from './src/ui/story';
 import { loadHighScore, saveHighScore } from './src/ui/storage';
 import { useGameLoop } from './src/ui/useGameLoop';
 
@@ -184,7 +185,7 @@ function GameRoot() {
   return (
     <View style={[styles.root, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       <Hud
-        level={hud.level}
+        mission={missionFor(hud.level).name}
         score={hud.score}
         highScore={highScore}
         lives={hud.lives}
@@ -206,20 +207,22 @@ function GameRoot() {
 
       {mode === 'menu' ? (
         <Overlay
-          title="KUŞAT"
-          subtitle="Kenardan içeri dal, izini çerçeveye bağla ve alanı ele geçir. Patronun bulunduğu bölge dolmaz; ondan uzak dur."
-          hint={`Yön için ekrana dokunup sürükle, boş alana dalmak için ÇİZ tuşunu basılı tut. Alanın %${game.targetPercent} kadarını kapatınca seviye geçilir.`}
-          primary={{ label: 'OYUNA BAŞLA', onPress: startGame }}
+          title={GAME_TITLE.toLocaleUpperCase('tr-TR')}
+          subtitle="Küçültülmüş bir geminin kaptanısın."
+          story={STORY_LINES}
+          hint={`${MISSION_BRIEF} Alanın %${game.targetPercent} kadarını temizleyince görev tamamlanır. Yön için ekrana dokunup sürükle, ışın için sağdaki tuşu basılı tut.`}
+          primary={{ label: 'GÖREVE BAŞLA', onPress: startGame }}
         />
       ) : null}
 
       {mode === 'paused' ? (
         <Overlay
-          title="DURAKLADI"
+          title="BEKLEMEDE"
+          subtitle={missionFor(hud.level).name}
           rows={[
-            { label: 'Seviye', value: String(hud.level) },
+            { label: 'Temizlenen', value: `%${hud.percent.toFixed(1)}` },
             { label: 'Puan', value: hud.score.toLocaleString('tr-TR') },
-            { label: 'Ele geçirilen', value: `%${hud.percent.toFixed(1)}` },
+            { label: 'Kalan gemi', value: String(hud.lives) },
           ]}
           primary={{ label: 'DEVAM ET', onPress: resume }}
           secondary={{ label: 'YENİDEN BAŞLA', onPress: startGame }}
@@ -228,28 +231,32 @@ function GameRoot() {
 
       {mode === 'levelClear' ? (
         <Overlay
-          title={`SEVİYE ${summary.level} TEMİZ`}
-          subtitle="Alan senin. Sıradaki seviyede daha fazla ve daha hızlı düşman var."
+          title="DOKU TEMİZ"
+          subtitle={`Sıradaki görev: ${missionFor(summary.level + 1).name}. ${missionFor(summary.level + 1).hint}`}
           rows={[
-            { label: 'Ele geçirilen', value: `%${summary.percent.toFixed(1)}` },
-            { label: 'Bonus', value: `+${summary.bonus.toLocaleString('tr-TR')}` },
+            { label: 'Temizlenen', value: `%${summary.percent.toFixed(1)}` },
+            { label: 'Görev primi', value: `+${summary.bonus.toLocaleString('tr-TR')}` },
             { label: 'Puan', value: summary.score.toLocaleString('tr-TR') },
           ]}
-          primary={{ label: 'SIRADAKİ SEVİYE', onPress: continueToNextLevel }}
+          primary={{ label: 'SONRAKİ GÖREV', onPress: continueToNextLevel }}
         />
       ) : null}
 
       {mode === 'gameOver' ? (
         <Overlay
-          title="OYUN BİTTİ"
-          subtitle={summary.score >= highScore ? 'Yeni rekor!' : undefined}
+          title="FİLO TÜKENDİ"
+          subtitle={
+            summary.score >= highScore && summary.score > 0
+              ? 'Yeni rekor! Hasta bir süre daha dayanacak.'
+              : 'Patojen dokuyu ele geçirdi.'
+          }
           rows={[
             { label: 'Puan', value: summary.score.toLocaleString('tr-TR') },
-            { label: 'Seviye', value: String(summary.level) },
+            { label: 'Ulaşılan görev', value: missionFor(summary.level).name },
             { label: 'Rekor', value: highScore.toLocaleString('tr-TR') },
           ]}
-          primary={{ label: 'TEKRAR OYNA', onPress: startGame }}
-          secondary={{ label: 'ANA MENÜ', onPress: goToMenu }}
+          primary={{ label: 'YENİDEN GÖREVE', onPress: startGame }}
+          secondary={{ label: 'ANA EKRAN', onPress: goToMenu }}
         />
       ) : null}
     </View>

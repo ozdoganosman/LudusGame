@@ -6,16 +6,21 @@
 import { FIELD_H, FIELD_W, START_LIVES } from '../src/engine/config';
 import { Game } from '../src/engine/game';
 import { NEUTRAL, snapToEight } from '../src/engine/input';
-import type { Enemy, Input } from '../src/engine/types';
+import type { Input } from '../src/engine/types';
 import { territoryOutline } from '../src/ui/contour';
 import type { Point } from '../src/ui/contour';
+import { enemyShapes, shipAngle, shipShapes } from '../src/ui/creatures';
+import type { Shape } from '../src/ui/creatures';
+import { GAME_TITLE, MISSION_BRIEF, STORY_LINES, missionFor } from '../src/ui/story';
 import { writeBackgroundPixels } from '../src/ui/gridImage';
 import { palette } from '../src/ui/palette';
 
 type Mode = 'menu' | 'playing' | 'paused' | 'levelClear' | 'gameOver';
 
-const HIGH_SCORE_KEY = 'kusat.highScore.v1';
+const HIGH_SCORE_KEY = 'nanogemi.highScore.v1';
 const KNOB_RANGE = 54;
+/** Tuvalin alan dışında bıraktığı pay (hücre): kenardaki gemi kırpılmasın. */
+const MARGIN = 2;
 
 const element = <T extends HTMLElement>(id: string): T => {
   const node = document.getElementById(id);
@@ -42,7 +47,7 @@ const context = require2d(canvas);
 const stage = element('stage');
 const overlay = element('overlay');
 const ui = {
-  level: element('level'),
+  mission: element('mission'),
   score: element('score'),
   high: element('high'),
   percent: element('percent'),
@@ -54,6 +59,7 @@ const ui = {
   stickKnob: element('stick-knob'),
   title: element('ov-title'),
   subtitle: element('ov-sub'),
+  story: element('ov-story'),
   rows: element('ov-rows'),
   hint: element('ov-hint'),
   primary: element<HTMLButtonElement>('ov-primary'),
@@ -69,6 +75,8 @@ let highScore = loadHighScore();
 let cell = 4;
 let gridVersion = -1;
 let hudTimer = 0;
+/** Geminin baktığı yön; dururken son yön korunur. */
+let facing = -Math.PI / 2;
 let summary = { level: 1, percent: 0, score: 0, bonus: 0 };
 
 // Zemin (boş alan + nokta dokusu) bir kez üretilir, her karede ölçeklenerek çizilir.
@@ -106,9 +114,11 @@ function saveHighScore(score: number): void {
 function resize(): void {
   const ratio = Math.min(window.devicePixelRatio || 1, 2);
   const available = stage.getBoundingClientRect();
-  cell = Math.max(2, Math.floor(Math.min(available.width / FIELD_W, available.height / FIELD_H)));
-  const width = cell * FIELD_W;
-  const height = cell * FIELD_H;
+  const columns = FIELD_W + MARGIN * 2;
+  const rows = FIELD_H + MARGIN * 2;
+  cell = Math.max(2, Math.floor(Math.min(available.width / columns, available.height / rows)));
+  const width = cell * columns;
+  const height = cell * rows;
   canvas.style.width = `${width}px`;
   canvas.style.height = `${height}px`;
   canvas.width = Math.round(width * ratio);
@@ -130,14 +140,17 @@ function draw(): void {
 
   const width = cell * FIELD_W;
   const height = cell * FIELD_H;
-  context.clearRect(0, 0, width, height);
+  context.clearRect(0, 0, cell * (FIELD_W + MARGIN * 2), cell * (FIELD_H + MARGIN * 2));
+
+  context.save();
+  context.translate(MARGIN * cell, MARGIN * cell);
   context.imageSmoothingEnabled = false;
   context.drawImage(backgroundCanvas, 0, 0, width, height);
 
   drawTerritory();
   drawTrail();
-  for (const enemy of game.enemies) drawEnemy(enemy);
-  drawPlayer();
+  drawCrew();
+  context.restore();
 }
 
 /** Ele geçirilmiş alan: köşeleri pahlanmış sınır çokgeni, üstünde ince bir kenar ışığı. */
@@ -179,66 +192,66 @@ function drawTrail(): void {
 
   context.lineCap = 'round';
   context.lineJoin = 'round';
-  context.lineWidth = cell;
+  // Işın: geniş soluk hâle + parlak çekirdek.
+  context.globalAlpha = 0.28;
+  context.lineWidth = cell * 2.2;
   context.strokeStyle = palette.trail;
+  context.stroke();
+  context.globalAlpha = 1;
+  context.lineWidth = cell * 0.9;
   context.stroke();
 }
 
-function disc(x: number, y: number, radius: number, color: string, alpha = 1): void {
-  context.globalAlpha = alpha;
-  context.fillStyle = color;
-  context.beginPath();
-  context.arc(x, y, radius, 0, Math.PI * 2);
-  context.fill();
+/** Şekil listesini (hücre biriminde) tuvale çizer. */
+function drawShapes(shapes: Shape[]): void {
+  for (const shape of shapes) {
+    context.globalAlpha = shape.alpha ?? 1;
+    context.fillStyle = shape.color;
+    context.beginPath();
+    if (shape.kind === 'circle') {
+      context.arc(shape.x * cell, shape.y * cell, shape.r * cell, 0, Math.PI * 2);
+    } else {
+      shape.points.forEach((point, index) => {
+        const x = point.x * cell;
+        const y = point.y * cell;
+        if (index === 0) context.moveTo(x, y);
+        else context.lineTo(x, y);
+      });
+      context.closePath();
+    }
+    context.fill();
+  }
   context.globalAlpha = 1;
 }
 
-function drawEnemy(enemy: Enemy): void {
-  const x = enemy.x * cell;
-  const y = enemy.y * cell;
-  const radius = enemy.radius * cell;
-
-  if (enemy.kind === 'boss') {
-    disc(x, y, radius * 1.9, palette.boss, 0.18);
-    context.save();
-    context.translate(x, y);
-    context.rotate(enemy.spin);
-    context.fillStyle = palette.boss;
-    context.fillRect(-radius, -radius, radius * 2, radius * 2);
-    context.restore();
-    disc(x, y, radius * 0.45, palette.text);
-    return;
-  }
-
-  const color = enemy.kind === 'hunter' ? palette.hunter : palette.drifter;
-  disc(x, y, radius * 1.7, color, 0.18);
-  if (enemy.kind === 'hunter') {
-    context.save();
-    context.translate(x, y);
-    context.rotate(enemy.spin);
-    context.fillStyle = color;
-    context.fillRect(-radius, -radius, radius * 2, radius * 2);
-    context.restore();
-  } else {
-    disc(x, y, radius, color);
-  }
-}
-
-function drawPlayer(): void {
-  const x = (game.player.x + 0.5) * cell;
-  const y = (game.player.y + 0.5) * cell;
+function drawCrew(): void {
+  const look = { x: game.player.x + 0.5, y: game.player.y + 0.5 };
+  for (const enemy of game.enemies) drawShapes(enemyShapes(enemy, look));
 
   if (game.phase === 'dying') {
-    disc(x, y, cell * 4, palette.danger, 0.5);
+    // Gemi vuruldu: kısa bir patlama parıltısı.
+    context.globalAlpha = 0.55;
+    context.fillStyle = palette.danger;
+    context.beginPath();
+    context.arc(look.x * cell, look.y * cell, cell * 4, 0, Math.PI * 2);
+    context.fill();
+    context.globalAlpha = 1;
     return;
   }
 
   // Dokunulmazken gemi yanıp söner.
   const blink = game.invulnerable > 0 && Math.floor(performance.now() / 90) % 2 === 0;
-  const alpha = blink ? 0.35 : 1;
-  disc(x, y, cell * 2.6, palette.playerGlow, 0.22 * alpha);
-  disc(x, y, cell * 1.5, palette.playerGlow, 0.5 * alpha);
-  disc(x, y, cell * 0.9, palette.player, alpha);
+  context.globalAlpha = blink ? 0.4 : 1;
+  drawShapes(
+    shipShapes({
+      x: look.x,
+      y: look.y,
+      angle: facing,
+      time: performance.now() / 1000,
+      beaming: game.player.drawing,
+    })
+  );
+  context.globalAlpha = 1;
 }
 
 // ---------------------------------------------------------------------- HUD
@@ -247,7 +260,8 @@ function refreshHud(): void {
   const target = game.targetPercent;
   const percent = game.percent;
   const reached = percent >= target;
-  ui.level.textContent = String(game.level);
+  const mission = missionFor(game.level);
+  ui.mission.textContent = mission.wave > 1 ? `${mission.name} · ${mission.wave}. DALGA` : mission.name;
   ui.score.textContent = game.score.toLocaleString('tr-TR');
   ui.high.textContent = `REKOR ${highScore.toLocaleString('tr-TR')}`;
   ui.percent.textContent = `%${percent.toFixed(1)} / %${target}`;
@@ -266,6 +280,8 @@ function refreshHud(): void {
 type OverlayConfig = {
   title: string;
   subtitle?: string;
+  /** Seyir defteri kutusundaki satırlar (açılış hikâyesi). */
+  story?: string[];
   rows?: { label: string; value: string }[];
   hint?: string;
   primary: { label: string; onPress: () => void };
@@ -276,6 +292,13 @@ function showOverlay(config: OverlayConfig): void {
   ui.title.textContent = config.title;
   ui.subtitle.textContent = config.subtitle ?? '';
   ui.hint.textContent = config.hint ?? '';
+  ui.story.replaceChildren(
+    ...(config.story ?? []).map((line) => {
+      const paragraph = document.createElement('p');
+      paragraph.textContent = line;
+      return paragraph;
+    })
+  );
   ui.rows.replaceChildren(
     ...(config.rows ?? []).flatMap((row) => {
       const term = document.createElement('dt');
@@ -302,48 +325,55 @@ function render(): void {
   switch (mode) {
     case 'menu':
       showOverlay({
-        title: 'KUŞAT',
-        subtitle:
-          'Kenardan içeri dal, izini çerçeveye bağla ve alanı ele geçir. Patronun bulunduğu bölge dolmaz; ondan uzak dur.',
-        hint: `Alanın %${game.targetPercent} kadarını kapatınca seviye geçilir. Yön için dokunup sürükle (yön tuşları / WASD), boş alana dalmak için ÇİZ tuşunu basılı tut (klavyede boşluk, duraklatma ESC).`,
-        primary: { label: 'OYUNA BAŞLA', onPress: startGame },
+        title: GAME_TITLE.toLocaleUpperCase('tr-TR'),
+        subtitle: 'Küçültülmüş bir geminin kaptanısın.',
+        story: STORY_LINES,
+        hint: `${MISSION_BRIEF} Alanın %${game.targetPercent} kadarını temizleyince görev tamamlanır.`,
+        primary: { label: 'GÖREVE BAŞLA', onPress: startGame },
       });
       break;
     case 'paused':
       showOverlay({
-        title: 'DURAKLADI',
+        title: 'BEKLEMEDE',
+        subtitle: missionFor(game.level).name,
         rows: [
-          { label: 'Seviye', value: String(game.level) },
+          { label: 'Temizlenen', value: `%${game.percent.toFixed(1)}` },
           { label: 'Puan', value: game.score.toLocaleString('tr-TR') },
-          { label: 'Ele geçirilen', value: `%${game.percent.toFixed(1)}` },
+          { label: 'Kalan gemi', value: String(game.lives) },
         ],
+        hint: 'Yön için ekrana dokunup sürükle (yön tuşları / WASD). Işın için sağdaki tuş ya da boşluk. ESC duraklatır.',
         primary: { label: 'DEVAM ET', onPress: () => setMode('playing') },
         secondary: { label: 'YENİDEN BAŞLA', onPress: startGame },
       });
       break;
-    case 'levelClear':
+    case 'levelClear': {
+      const next = missionFor(summary.level + 1);
       showOverlay({
-        title: `SEVİYE ${summary.level} TEMİZ`,
-        subtitle: 'Alan senin. Sıradaki seviyede daha fazla ve daha hızlı düşman var.',
+        title: 'DOKU TEMİZ',
+        subtitle: `Sıradaki görev: ${next.name}. ${next.hint}`,
         rows: [
-          { label: 'Ele geçirilen', value: `%${summary.percent.toFixed(1)}` },
-          { label: 'Bonus', value: `+${summary.bonus.toLocaleString('tr-TR')}` },
+          { label: 'Temizlenen', value: `%${summary.percent.toFixed(1)}` },
+          { label: 'Görev primi', value: `+${summary.bonus.toLocaleString('tr-TR')}` },
           { label: 'Puan', value: summary.score.toLocaleString('tr-TR') },
         ],
-        primary: { label: 'SIRADAKİ SEVİYE', onPress: nextLevel },
+        primary: { label: 'SONRAKİ GÖREV', onPress: nextLevel },
       });
       break;
+    }
     case 'gameOver':
       showOverlay({
-        title: 'OYUN BİTTİ',
-        subtitle: summary.score >= highScore && summary.score > 0 ? 'Yeni rekor!' : undefined,
+        title: 'FİLO TÜKENDİ',
+        subtitle:
+          summary.score >= highScore && summary.score > 0
+            ? 'Yeni rekor! Hasta bir süre daha dayanacak.'
+            : 'Patojen dokuyu ele geçirdi.',
         rows: [
           { label: 'Puan', value: summary.score.toLocaleString('tr-TR') },
-          { label: 'Seviye', value: String(summary.level) },
+          { label: 'Ulaşılan görev', value: missionFor(summary.level).name },
           { label: 'Rekor', value: highScore.toLocaleString('tr-TR') },
         ],
-        primary: { label: 'TEKRAR OYNA', onPress: startGame },
-        secondary: { label: 'ANA MENÜ', onPress: () => setMode('menu') },
+        primary: { label: 'YENİDEN GÖREVE', onPress: startGame },
+        secondary: { label: 'ANA EKRAN', onPress: () => setMode('menu') },
       });
       break;
     case 'playing':
@@ -497,6 +527,8 @@ let previous: number | null = null;
 function tick(timestamp: number): void {
   const dt = previous === null ? 0 : (timestamp - previous) / 1000;
   previous = timestamp;
+
+  facing = shipAngle(game.player.dx, game.player.dy, facing);
 
   if (mode === 'playing' && dt > 0) {
     for (const event of game.update(dt, { dx: input.dx, dy: input.dy, dive: diving })) {

@@ -2,7 +2,7 @@
  * Web sürümünü dist/ altına paketler. Üç çıktı, tek kaynaktan:
  *
  *   dist/index.html + main.js   statik site (GitHub Pages, Netlify)
- *   dist/kusat.html             tek dosyalık sürüm; çift tıklayıp oynanır,
+ *   dist/nanogemi.html          tek dosyalık sürüm; çift tıklayıp oynanır,
  *                               tek başına da paylaşılabilir
  *   dist/artifact.html          gövde + stil, belge iskeleti olmadan
  *                               (Claude Artifact gibi sayfayı kendi saran ortamlar)
@@ -20,11 +20,11 @@ const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const outDir = resolve(root, 'dist');
 const serve = process.argv.includes('--serve');
 
-const TITLE = 'Kuşat';
+const TITLE = 'Nanogemi';
 const DESCRIPTION =
-  'Kuşat — Volfied tarzı alan kapatma oyunu. Kenardan içeri dal, izini bağla, alanı ele geçir.';
+  'Nanogemi — küçültülmüş bir geminin kaptanı olarak insan dokusunu mikrop ve virüslerden temizle.';
 const FAVICON =
-  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2305070f'/%3E%3Crect x='4' y='16' width='10' height='12' fill='%231b4b8f'/%3E%3Ccircle cx='22' cy='10' r='4' fill='%23ff3b7f'/%3E%3C/svg%3E";
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%231b0f2e'/%3E%3Cpath d='M6 16 L20 9 L18 16 L20 23 Z' fill='%23eaf6ff'/%3E%3Ccircle cx='24' cy='16' r='3.5' fill='%233ff0c0'/%3E%3C/svg%3E";
 
 const read = (file) => readFileSync(resolve(root, file), 'utf8');
 
@@ -83,7 +83,7 @@ function writeOutputs() {
     resolve(outDir, 'index.html'),
     documentPage(css, body, '<script type="module" src="./main.js"></script>')
   );
-  writeFileSync(resolve(outDir, 'kusat.html'), documentPage(css, body, inline));
+  writeFileSync(resolve(outDir, 'nanogemi.html'), documentPage(css, body, inline));
   writeFileSync(resolve(outDir, 'artifact.html'), embeddedPage(css, body, inline));
 }
 
@@ -112,9 +112,9 @@ const ctx = await context({
 if (serve) {
   await ctx.watch();
   const { hosts, port } = await ctx.serve({ servedir: outDir, port: 4173 });
-  console.log(`Kuşat web: http://${hosts[0]}:${port}`);
+  console.log(`Nanogemi: http://${hosts[0]}:${port}`);
 } else {
   await ctx.rebuild();
   await ctx.dispose();
-  console.log('dist/ hazır: index.html + main.js, kusat.html (tek dosya), artifact.html');
+  console.log('dist/ hazır: index.html + main.js, nanogemi.html (tek dosya), artifact.html');
 }
