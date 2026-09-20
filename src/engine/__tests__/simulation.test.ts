@@ -41,7 +41,8 @@ test('60 saniyelik rastgele oynanışta oyun tutarlı kalır', () => {
   for (let frame = 0; frame < 3600; frame++) {
     // Yön ara sıra değişsin ki oyuncu alanın içinde gerçekten dolaşsın.
     if (frame % 12 === 0) direction = rng.pick(DIRECTIONS);
-    const events = game.update(1 / 60, direction);
+    // Rastgele oyuncu dalış tuşunu basılı tutuyor; tuşun kendisi ayrı test ediliyor.
+    const events = game.update(1 / 60, { ...direction, dive: true });
 
     for (const event of events) {
       if (event.type === 'capture') {

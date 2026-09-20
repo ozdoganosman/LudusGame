@@ -29,7 +29,16 @@ export type Phase = 'ready' | 'playing' | 'dying' | 'levelClear' | 'gameOver';
 export type DeathCause = 'enemy' | 'trail-cut' | 'self';
 
 /** Joystick'ten gelen yön; her bileşen -1, 0 veya 1. */
-export type Input = { dx: number; dy: number };
+export type Input = {
+  dx: number;
+  dy: number;
+  /**
+   * Dalış tuşu basılı mı? Ele geçirilmiş alandan boş alana ilk adım yalnızca
+   * bu açıkken atılır; kazara kenardan çıkmayı önler. İz başladıktan sonra
+   * hareket serbesttir.
+   */
+  dive?: boolean;
+};
 
 export type GameEvent =
   | { type: 'trail-start' }

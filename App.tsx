@@ -8,6 +8,7 @@ import { FIELD_H, FIELD_W, START_LIVES } from './src/engine/config';
 import { Game } from './src/engine/game';
 import { NEUTRAL } from './src/engine/input';
 import type { Input } from './src/engine/types';
+import { DiveButton } from './src/ui/DiveButton';
 import { GameCanvas } from './src/ui/GameCanvas';
 import { Hud } from './src/ui/Hud';
 import { Joystick } from './src/ui/Joystick';
@@ -46,6 +47,8 @@ function GameRoot() {
   const game = gameRef.current;
 
   const inputRef = useRef<Input>(NEUTRAL);
+  /** Dalış tuşu: kenardan boş alana ancak basılıyken çıkılır. */
+  const divingRef = useRef(false);
   const hudTimer = useRef(0);
 
   const [mode, setMode] = useState<Mode>('menu');
@@ -66,7 +69,11 @@ function GameRoot() {
 
   const step = useCallback(
     (dt: number) => {
-      const events = game.update(dt, inputRef.current);
+      const events = game.update(dt, {
+        dx: inputRef.current.dx,
+        dy: inputRef.current.dy,
+        dive: divingRef.current,
+      });
 
       for (const event of events) {
         switch (event.type) {
@@ -136,12 +143,17 @@ function GameRoot() {
     inputRef.current = input;
   }, []);
 
+  const handleDive = useCallback((held: boolean) => {
+    divingRef.current = held;
+  }, []);
+
   const syncHud = useCallback(() => {
     setHud({ level: game.level, score: game.score, lives: game.lives, percent: game.percent });
   }, [game]);
 
   const startGame = useCallback(() => {
     inputRef.current = NEUTRAL;
+    divingRef.current = false;
     game.start();
     syncHud();
     setMode('playing');
@@ -149,6 +161,7 @@ function GameRoot() {
 
   const continueToNextLevel = useCallback(() => {
     inputRef.current = NEUTRAL;
+    divingRef.current = false;
     game.nextLevel();
     syncHud();
     setMode('playing');
@@ -156,6 +169,7 @@ function GameRoot() {
 
   const pause = useCallback(() => {
     inputRef.current = NEUTRAL;
+    divingRef.current = false;
     setMode((current) => (current === 'playing' ? 'paused' : current));
   }, []);
 
@@ -183,13 +197,18 @@ function GameRoot() {
         <GameCanvas game={game} cell={cell} frame={frame} />
       </View>
 
-      <Joystick onChange={handleInput} height={STICK_HEIGHT} />
+      <View style={styles.controls}>
+        <Joystick onChange={handleInput} height={STICK_HEIGHT} />
+        <View style={styles.diveSlot} pointerEvents="box-none">
+          <DiveButton onChange={handleDive} />
+        </View>
+      </View>
 
       {mode === 'menu' ? (
         <Overlay
           title="KUŞAT"
           subtitle="Kenardan içeri dal, izini çerçeveye bağla ve alanı ele geçir. Patronun bulunduğu bölge dolmaz; ondan uzak dur."
-          hint={`Alanın %${game.targetPercent} kadarını kapatınca seviye geçilir. Düşman izine değerse canını kaybedersin.`}
+          hint={`Yön için ekrana dokunup sürükle, boş alana dalmak için ÇİZ tuşunu basılı tut. Alanın %${game.targetPercent} kadarını kapatınca seviye geçilir.`}
           primary={{ label: 'OYUNA BAŞLA', onPress: startGame }}
         />
       ) : null}
@@ -245,6 +264,16 @@ const styles = StyleSheet.create({
   field: {
     flex: 1,
     alignItems: 'center',
+    justifyContent: 'center',
+  },
+  controls: {
+    position: 'relative',
+  },
+  diveSlot: {
+    position: 'absolute',
+    right: 22,
+    top: 0,
+    bottom: 0,
     justifyContent: 'center',
   },
 });

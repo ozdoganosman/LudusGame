@@ -16,11 +16,15 @@ export function makeEnemy(kind: EnemyKind, x: number, y: number, id = 1): Enemy 
   };
 }
 
-/** Oyuncuyu tam olarak bir hücre ilerletecek kadar süre işletir. */
+/**
+ * Oyuncuyu tam olarak bir hücre ilerletecek kadar süre işletir.
+ * Dalış tuşu aksi belirtilmedikçe basılı sayılır; tuşun kendisini sınayan
+ * testler `dive: false` geçirir.
+ */
 export function stepOnce(game: Game, input: Input): GameEvent[] {
   const diagonal = input.dx !== 0 && input.dy !== 0;
   const dt = (diagonal ? Math.SQRT2 : 1) / PLAYER_SPEED + 1e-9;
-  return game.update(dt, input);
+  return game.update(dt, { dive: true, ...input });
 }
 
 /** Aynı yönde n hücre ilerletir, oluşan tüm olayları döndürür. */

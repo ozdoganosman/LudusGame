@@ -64,6 +64,37 @@ test('izi çerçeveye bağlamak patronsuz bölgeyi ele geçirir', () => {
   assert.ok(Math.abs(game.percent - (112 / 196) * 100) < 1e-9);
 });
 
+test('dalış tuşu basılı değilken boş alana girilmez', () => {
+  const game = setupGame();
+
+  const events = stepOnce(game, { dx: 0, dy: -1, dive: false });
+
+  assert.equal(game.player.y, 15, 'gemi kenarda kalmalı');
+  assert.equal(game.player.drawing, false);
+  assert.equal(game.trail.length, 0);
+  assert.equal(eventsOfType(events, 'trail-start').length, 0);
+});
+
+test('dalış tuşu basılı değilken kenarda hareket serbest', () => {
+  const game = setupGame();
+
+  stepMany(game, { dx: -1, dy: 0, dive: false }, 3);
+
+  assert.equal(game.player.x, 5);
+  assert.equal(game.player.y, 15);
+});
+
+test('iz başladıktan sonra dalış tuşu gerekmez', () => {
+  const game = setupGame();
+  stepOnce(game, { dx: 0, dy: -1 }); // tuş basılı: iz başlar
+
+  stepMany(game, { dx: 0, dy: -1, dive: false }, 3); // tuş bırakıldı
+
+  assert.equal(game.player.drawing, true);
+  assert.equal(game.player.y, 11, 'çizim sürerken hareket engellenmez');
+  assert.equal(game.trail.length, 4);
+});
+
 test('çapraz iz tek hücre kalınlığındadır', () => {
   const game = setupGame();
   stepMany(game, { dx: -1, dy: -1 }, 5);

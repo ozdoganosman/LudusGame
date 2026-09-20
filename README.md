@@ -18,6 +18,7 @@ geri kalanı bir hamlede senin olur. Sıradan düşmanlar kapattığın bölgede
 | Hedef | İç alanın **%80'ini** ele geçirmek |
 | Hareket | Gemi yalnızca ele geçirilmiş alanın **kenarında** yürür; bloğun içine giremez |
 | Güvenli bölge | Kenarda dururken düşmanlar sana değemez |
+| Dalış | Kenardan boş alana yalnızca **ÇİZ** tuşu basılıyken çıkılır |
 | Risk | Boş alana girdiğin anda iz bırakmaya başlarsın ve açıktasın |
 | Ölüm | Düşman izine veya sana değerse, ya da kendi izine girersen |
 | Patron (pembe) | Bulunduğu bölge ele geçirilemez, her yerde tehlikelidir |
@@ -25,8 +26,10 @@ geri kalanı bir hamlede senin olur. Sıradan düşmanlar kapattığın bölgede
 | Avcı (sarı) | 4. seviyeden sonra çıkar, seni takip eder |
 
 **Kontrol:** ekrana parmağını koy — dokunduğun nokta joystick merkezi olur, 8 yöne
-hareket edebilirsin; parmağını kaldırınca gemi durur. Web sürümünde ayrıca yön tuşları
-veya WASD, boşluk/ESC ile duraklatma çalışır.
+hareket edebilirsin; parmağını kaldırınca gemi durur. Boş alana dalmak için sağdaki
+**ÇİZ** tuşunu basılı tutman gerekir: tuşa basmadan kenardan çıkamazsın, böylece
+kazara dalış olmaz. İz başladıktan sonra tuşu bırakabilirsin. Web sürümünde ayrıca
+yön tuşları veya WASD, ÇİZ için Shift, boşluk/ESC ile duraklatma çalışır.
 
 ## Çalıştırma
 

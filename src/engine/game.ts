@@ -60,6 +60,8 @@ export class Game {
   private nextEnemyId = 1;
   private trailStart: Vec = { x: 0, y: 0 };
   private previousCell: Vec | null = null;
+  /** Bu karede dalış tuşu basılı mı (movePlayer içinde girdiden okunur). */
+  private wantsDive = false;
   private events: GameEvent[] = [];
 
   constructor(options: GameOptions = {}) {
@@ -165,6 +167,7 @@ export class Game {
   private movePlayer(dt: number, input: Input): void {
     const dx = Math.sign(input.dx);
     const dy = Math.sign(input.dy);
+    this.wantsDive = input.dive === true;
     if (dx === 0 && dy === 0) {
       this.stepAccumulator = 0;
       return;
@@ -200,7 +203,8 @@ export class Game {
         player.y = ty;
         return;
       }
-      // Boş alana ilk adım: iz başlar.
+      // Boş alana ilk adım yalnızca dalış tuşu basılıyken atılır.
+      if (!this.wantsDive) return;
       if (this.diagonalCorner(dx, dy) !== 'ok') return;
       this.trailStart = { x: player.x, y: player.y };
       player.drawing = true;

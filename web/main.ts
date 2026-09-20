@@ -49,6 +49,7 @@ const ui = {
   barFill: element('bar-fill'),
   lives: element('lives'),
   pause: element<HTMLButtonElement>('pause'),
+  dive: element<HTMLButtonElement>('dive'),
   stickBase: element('stick-base'),
   stickKnob: element('stick-knob'),
   title: element('ov-title'),
@@ -62,6 +63,8 @@ const ui = {
 const game = new Game({ seed: Date.now() >>> 0 });
 let mode: Mode = 'menu';
 let input: Input = NEUTRAL;
+/** Dalış tuşu basılı mı: kenardan boş alana ancak bu açıkken çıkılır. */
+let diving = false;
 let highScore = loadHighScore();
 let cell = 4;
 let gridVersion = -1;
@@ -302,7 +305,7 @@ function render(): void {
         title: 'KUŞAT',
         subtitle:
           'Kenardan içeri dal, izini çerçeveye bağla ve alanı ele geçir. Patronun bulunduğu bölge dolmaz; ondan uzak dur.',
-        hint: `Alanın %${game.targetPercent} kadarını kapatınca seviye geçilir. Dokunup sürükle (veya yön tuşları / WASD).`,
+        hint: `Alanın %${game.targetPercent} kadarını kapatınca seviye geçilir. Yön için dokunup sürükle (yön tuşları / WASD), boş alana dalmak için ÇİZ tuşunu basılı tut (Shift).`,
         primary: { label: 'OYUNA BAŞLA', onPress: startGame },
       });
       break;
@@ -353,6 +356,7 @@ function render(): void {
 function setMode(next: Mode): void {
   mode = next;
   input = NEUTRAL;
+  setDiving(false);
   render();
 }
 
@@ -395,6 +399,10 @@ function inputFromKeys(): Input {
 }
 
 window.addEventListener('keydown', (event) => {
+  if (event.key === 'Shift') {
+    setDiving(true);
+    return;
+  }
   if (event.code === 'Space' || event.code === 'Escape') {
     event.preventDefault();
     if (mode === 'playing') setMode('paused');
@@ -413,6 +421,7 @@ window.addEventListener('keydown', (event) => {
 });
 
 window.addEventListener('keyup', (event) => {
+  if (event.key === 'Shift') setDiving(false);
   if (!pressed.delete(event.code)) return;
   input = inputFromKeys();
 });
@@ -461,6 +470,20 @@ ui.pause.addEventListener('click', () => {
   if (mode === 'playing') setMode('paused');
 });
 
+function setDiving(active: boolean): void {
+  diving = active;
+  ui.dive.classList.toggle('held', active);
+}
+
+ui.dive.addEventListener('pointerdown', (event) => {
+  event.preventDefault();
+  ui.dive.setPointerCapture(event.pointerId);
+  setDiving(true);
+});
+for (const type of ['pointerup', 'pointercancel', 'pointerleave'] as const) {
+  ui.dive.addEventListener(type, () => setDiving(false));
+}
+
 document.addEventListener('visibilitychange', () => {
   if (document.hidden && mode === 'playing') setMode('paused');
 });
@@ -474,7 +497,7 @@ function tick(timestamp: number): void {
   previous = timestamp;
 
   if (mode === 'playing' && dt > 0) {
-    for (const event of game.update(dt, input)) {
+    for (const event of game.update(dt, { dx: input.dx, dy: input.dy, dive: diving })) {
       if (event.type === 'level-clear') {
         summary = {
           level: event.level,
