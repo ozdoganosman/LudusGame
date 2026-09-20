@@ -20,10 +20,15 @@ geri kalanı bir hamlede senin olur. Sıradan düşmanlar kapattığın bölgede
 | Güvenli bölge | Kenarda dururken düşmanlar sana değemez |
 | Dalış | Kenardan boş alana yalnızca **ÇİZ** tuşu basılıyken çıkılır |
 | Risk | Boş alana girdiğin anda iz bırakmaya başlarsın ve açıktasın |
-| Ölüm | Düşman izine veya sana değerse, ya da kendi izine girersen |
+| Geri sarma | İzde geldiğin yönde geri gidersen geçtiğin hücreler silinir; başa dönersen çizim iptal olur |
+| Ölüm | Düşman izine veya sana değerse, ya da kendi izinin **başka** bir yerine girersen |
 | Patron (pembe) | Bulunduğu bölge ele geçirilemez, her yerde tehlikelidir |
 | Gezgin (turuncu) | Rastgele seker; kapatılan bölgede kalırsa yok olur ve puan verir |
 | Avcı (sarı) | 4. seviyeden sonra çıkar, seni takip eder |
+
+İzin ucunda takılırsan geri sarabilirsin: geldiğin yöne dönmek izi hücre hücre
+siler, tamamen geri sararsan hiç alan kaybetmeden kenara dönersin. Yalnızca izin
+*başka* bir noktasına girmek ölümcüldür.
 
 **Kontrol:** ekrana parmağını koy — dokunduğun nokta joystick merkezi olur, 8 yöne
 hareket edebilirsin; parmağını kaldırınca gemi durur. Boş alana dalmak için sağdaki

@@ -288,7 +288,8 @@ function main() {
   let pending = [...SNAPSHOT_TIMES];
 
   while (pending.length > 0 && time < 240) {
-    const events = game.update(dt, bot(game));
+    // Bot dalış tuşunu basılı tutuyor; tuşun kendisi motor testlerinde sınanıyor.
+    const events = game.update(dt, { ...bot(game), dive: true });
     for (const event of events) {
       if (event.type === 'level-clear') {
         console.log(`  seviye ${event.level} tamamlandı: %${event.percent.toFixed(1)}, bonus ${event.bonus}`);

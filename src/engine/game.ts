@@ -59,7 +59,6 @@ export class Game {
   private spawnTimer = 0;
   private nextEnemyId = 1;
   private trailStart: Vec = { x: 0, y: 0 };
-  private previousCell: Vec | null = null;
   /** Bu karede dalış tuşu basılı mı (movePlayer içinde girdiden okunur). */
   private wantsDive = false;
   private events: GameEvent[] = [];
@@ -92,7 +91,6 @@ export class Game {
     this.level = level;
     this.field.reset();
     this.trail = [];
-    this.previousCell = null;
     this.stepAccumulator = 0;
     this.invulnerable = RESPAWN_INVULN;
     this.freeze = 0;
@@ -208,15 +206,19 @@ export class Game {
       if (this.diagonalCorner(dx, dy) !== 'ok') return;
       this.trailStart = { x: player.x, y: player.y };
       player.drawing = true;
-      this.previousCell = { x: player.x, y: player.y };
       this.events.push({ type: 'trail-start' });
       this.advanceTrail(tx, ty);
       return;
     }
 
+    // Arkandaki hücreye dönmek izi geri sarar: üstünde durduğun hücre silinir.
+    const behind = this.cellBehind();
+    if (behind.x === tx && behind.y === ty) {
+      this.retrace(tx, ty);
+      return;
+    }
+
     if (target === TRAIL) {
-      // Geri dönüş sayılan tek hücre engellenir; dokunmatikte kazara ölüm olmasın.
-      if (this.previousCell && this.previousCell.x === tx && this.previousCell.y === ty) return;
       this.die('self');
       return;
     }
@@ -245,11 +247,32 @@ export class Game {
    */
   private advanceTrail(tx: number, ty: number): void {
     const { field, player } = this;
-    this.previousCell = { x: player.x, y: player.y };
     player.x = tx;
     player.y = ty;
     field.set(tx, ty, TRAIL);
     this.trail.push({ x: tx, y: ty });
+  }
+
+  /** İz üzerinde geminin bir gerisindeki hücre; iz tek hücreyse başlangıç noktası. */
+  private cellBehind(): Vec {
+    return this.trail.length >= 2 ? this.trail[this.trail.length - 2] : this.trailStart;
+  }
+
+  /**
+   * İzi bir hücre geri sarar: geminin üstünde durduğu hücre boşa döner ve gemi
+   * arkadaki hücreye çekilir. İz tükenirse çizim iptal olur — kapatma yok.
+   */
+  private retrace(tx: number, ty: number): void {
+    const { field, player } = this;
+    const leaving = this.trail.pop();
+    if (leaving) field.set(leaving.x, leaving.y, EMPTY);
+
+    player.x = tx;
+    player.y = ty;
+
+    if (this.trail.length === 0) {
+      player.drawing = false;
+    }
   }
 
   /**
@@ -278,7 +301,6 @@ export class Game {
     }
 
     this.trail = [];
-    this.previousCell = null;
     this.player.drawing = false;
     // Kapatılan bölge gemiyi içeride bıraktıysa en yakın kenara çek.
     this.moveToNearestEdge();
@@ -431,7 +453,6 @@ export class Game {
   private die(cause: DeathCause): void {
     clearTrail(this.field, this.trail);
     this.trail = [];
-    this.previousCell = null;
     this.player.drawing = false;
     this.stepAccumulator = 0;
     this.lives -= 1;

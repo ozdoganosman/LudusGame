@@ -227,16 +227,62 @@ test('kendi izine girmek canı götürür', () => {
   assert.equal(game.field.get(8, 12), EMPTY);
 });
 
-test('bir hücre geri dönmek öldürmez, sadece engellenir', () => {
+test('izde geri gitmek geçilen hücreyi siler', () => {
   const game = setupGame();
-  stepMany(game, { dx: 0, dy: -1 }, 3);
-  const before = { ...game.player };
+  stepMany(game, { dx: 0, dy: -1 }, 3); // (8,14) (8,13) (8,12)
 
   const events = stepOnce(game, { dx: 0, dy: 1 });
 
   assert.equal(eventsOfType(events, 'death').length, 0);
-  assert.equal(game.player.x, before.x);
-  assert.equal(game.player.y, before.y);
+  assert.equal(game.player.x, 8);
+  assert.equal(game.player.y, 13, 'gemi bir hücre geri gelmeli');
+  assert.equal(game.field.get(8, 12), EMPTY, 'geçilen hücre silinmeli');
+  assert.deepEqual(game.trail, [
+    { x: 8, y: 14 },
+    { x: 8, y: 13 },
+  ]);
+  assert.equal(game.player.drawing, true);
+});
+
+test('çaprazda da geri sarılır', () => {
+  const game = setupGame();
+  stepMany(game, { dx: -1, dy: -1 }, 3); // (7,14) (6,13) (5,12)
+
+  stepOnce(game, { dx: 1, dy: 1 });
+
+  assert.equal(game.player.x, 6);
+  assert.equal(game.player.y, 13);
+  assert.equal(game.field.get(5, 12), EMPTY);
+  assert.equal(game.trail.length, 2);
+});
+
+test('izi tamamen geri sarmak çizimi iptal eder', () => {
+  const game = setupGame();
+  stepMany(game, { dx: 0, dy: -1 }, 2); // (8,14) (8,13)
+
+  const events = stepMany(game, { dx: 0, dy: 1 }, 2);
+
+  assert.equal(game.player.drawing, false);
+  assert.equal(game.trail.length, 0);
+  assert.equal(game.player.x, 8);
+  assert.equal(game.player.y, 15, 'başladığı kenar hücresine dönmeli');
+  assert.equal(game.field.get(8, 14), EMPTY);
+  assert.equal(game.percent, 0, 'geri sarınca alan kazanılmaz');
+  assert.equal(eventsOfType(events, 'capture').length, 0);
+  assert.equal(eventsOfType(events, 'death').length, 0);
+});
+
+test('geri sardıktan sonra yeniden ilerlenebilir', () => {
+  const game = setupGame();
+  stepMany(game, { dx: 0, dy: -1 }, 3);
+  stepMany(game, { dx: 0, dy: 1 }, 2); // iki hücre geri sar
+
+  stepMany(game, { dx: -1, dy: 0 }, 2); // başka yöne devam
+
+  assert.equal(game.player.drawing, true);
+  assert.equal(game.player.x, 6);
+  assert.equal(game.player.y, 14);
+  assert.equal(game.trail.length, 3);
 });
 
 test('düşman ize değerse oyuncu ölür', () => {
