@@ -33,8 +33,9 @@ siler, tamamen geri sararsan hiç alan kaybetmeden kenara dönersin. Yalnızca i
 **Kontrol:** ekrana parmağını koy — dokunduğun nokta joystick merkezi olur, 8 yöne
 hareket edebilirsin; parmağını kaldırınca gemi durur. Boş alana dalmak için sağdaki
 **ÇİZ** tuşunu basılı tutman gerekir: tuşa basmadan kenardan çıkamazsın, böylece
-kazara dalış olmaz. İz başladıktan sonra tuşu bırakabilirsin. Web sürümünde ayrıca
-yön tuşları veya WASD, ÇİZ için Shift, boşluk/ESC ile duraklatma çalışır.
+kazara dalış olmaz. İz başladıktan sonra tuşu bırakabilirsin. Web sürümünde klavye de
+çalışır: yön tuşları veya WASD ile hareket, **boşluk** basılı tutarak çiz, **ESC**
+ile duraklat.
 
 ## Çalıştırma
 

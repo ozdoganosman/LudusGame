@@ -305,7 +305,7 @@ function render(): void {
         title: 'KUŞAT',
         subtitle:
           'Kenardan içeri dal, izini çerçeveye bağla ve alanı ele geçir. Patronun bulunduğu bölge dolmaz; ondan uzak dur.',
-        hint: `Alanın %${game.targetPercent} kadarını kapatınca seviye geçilir. Yön için dokunup sürükle (yön tuşları / WASD), boş alana dalmak için ÇİZ tuşunu basılı tut (Shift).`,
+        hint: `Alanın %${game.targetPercent} kadarını kapatınca seviye geçilir. Yön için dokunup sürükle (yön tuşları / WASD), boş alana dalmak için ÇİZ tuşunu basılı tut (klavyede boşluk, duraklatma ESC).`,
         primary: { label: 'OYUNA BAŞLA', onPress: startGame },
       });
       break;
@@ -399,11 +399,13 @@ function inputFromKeys(): Input {
 }
 
 window.addEventListener('keydown', (event) => {
-  if (event.key === 'Shift') {
-    setDiving(true);
+  // Boşluk: çiz (basılı tutulur). ESC: duraklat / devam et.
+  if (event.code === 'Space') {
+    event.preventDefault();
+    if (mode === 'playing') setDiving(true);
     return;
   }
-  if (event.code === 'Space' || event.code === 'Escape') {
+  if (event.code === 'Escape') {
     event.preventDefault();
     if (mode === 'playing') setMode('paused');
     else if (mode === 'paused') setMode('playing');
@@ -421,7 +423,7 @@ window.addEventListener('keydown', (event) => {
 });
 
 window.addEventListener('keyup', (event) => {
-  if (event.key === 'Shift') setDiving(false);
+  if (event.code === 'Space') setDiving(false);
   if (!pressed.delete(event.code)) return;
   input = inputFromKeys();
 });
