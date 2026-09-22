@@ -10,7 +10,7 @@
     "web": "expo start --web",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test src/engine/__tests__/*.test.ts",
+    "test": "tsx --test src/engine/__tests__/*.test.ts src/ui/__tests__/*.test.ts",
     "preview": "tsx tools/preview.ts docs/preview.png",
     "build:web": "node tools/build-web.mjs",
     "dev:web": "node tools/build-web.mjs --serve"

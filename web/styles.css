@@ -390,3 +390,196 @@ body.dragging #stick-hint {
   transform: translateY(2px);
   box-shadow: 0 2px 0 #0b6b5a;
 }
+
+/* ------------------------------------------------------- altın ve kalkan */
+
+.hud-row.meta {
+  gap: 8px;
+}
+
+.hud-row .spacer {
+  flex: 1;
+}
+
+.shield {
+  display: flex;
+  gap: 5px;
+  height: 10px;
+}
+
+.shield span {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  border: 2px solid var(--filled-edge);
+}
+
+.shield span.full {
+  background: var(--filled-edge);
+}
+
+.coin {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--gold);
+}
+
+.coin::before {
+  content: "";
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff3c4 0%, var(--gold) 55%, #b07d12 100%);
+}
+
+/* ------------------------------------------------------------- hangar */
+
+#shop {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(7, 4, 16, 0.94);
+}
+
+#shop[hidden] {
+  display: none;
+}
+
+.shop-panel {
+  max-width: 420px;
+  gap: 14px;
+}
+
+.shop-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+#ship-preview {
+  flex: 1;
+  min-width: 0;
+  height: auto;
+  border-radius: 14px;
+  border: 1px solid var(--surface-edge);
+  background: radial-gradient(120% 120% at 50% 20%, #241750 0%, #0d0820 100%);
+}
+
+.shop-purse {
+  margin: 0;
+  display: grid;
+  gap: 2px;
+  text-align: right;
+}
+
+.shop-purse dt {
+  font-size: 10px;
+  letter-spacing: 1.2px;
+  color: var(--text-dim);
+}
+
+.shop-purse dd {
+  margin: 0 0 8px;
+  font-size: 18px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  justify-content: flex-end;
+}
+
+#shop-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 46vh;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.part {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--surface-edge);
+  background: rgba(10, 6, 22, 0.55);
+}
+
+.part h2 {
+  grid-column: 1;
+  margin: 0;
+  font-size: 14px;
+  letter-spacing: 0.8px;
+  color: var(--text);
+}
+
+.part .pips {
+  grid-column: 2;
+  display: flex;
+  gap: 4px;
+  align-self: center;
+}
+
+.part .pips i {
+  width: 12px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--surface-edge);
+}
+
+.part .pips i.on {
+  background: var(--accent);
+}
+
+.part .effect {
+  grid-column: 1 / -1;
+  margin: 0;
+  text-align: left;
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--text-dim);
+}
+
+.part .effect b {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.part button {
+  grid-column: 1 / -1;
+  height: 40px;
+  font-size: 14px;
+  letter-spacing: 0.6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.part button[disabled] {
+  background: transparent;
+  border: 2px solid var(--surface-edge);
+  color: var(--text-dim);
+  box-shadow: none;
+  cursor: default;
+}
+
+.part button .coin {
+  /* Naneli tuşun üstünde koyu yazı okunur kalsın. */
+  color: #06241f;
+}
+
+.part button[disabled] .coin {
+  color: var(--text-dim);
+}
+
+.part.maxed {
+  border-color: var(--filled);
+}

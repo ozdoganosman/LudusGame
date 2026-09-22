@@ -1,7 +1,6 @@
 import {
   AlphaType,
   Canvas,
-  Circle,
   ColorType,
   FillType,
   FilterMode,
@@ -14,11 +13,13 @@ import type { SkPath } from '@shopify/react-native-skia';
 import { memo, useMemo, useRef } from 'react';
 
 import type { Game } from '../engine/game';
+import type { Loadout } from '../engine/upgrades';
 import { territoryOutline } from './contour';
-import { enemyShapes, shipAngle, shipShapes } from './creatures';
+import { enemyShapes, shipAngle, shipShapes, shotShapes } from './creatures';
 import type { Shape } from './creatures';
 import { writeBackgroundPixels } from './gridImage';
 import { palette } from './palette';
+import { ShapeNodes } from './SkiaShapes';
 
 type Props = {
   game: Game;
@@ -26,9 +27,11 @@ type Props = {
   cell: number;
   /** Her karede artan sayaç; yeniden çizimi tetikler. */
   frame: number;
+  /** Satın alınmış parçalar; gemide görünür. */
+  loadout: Loadout;
 };
 
-export const GameCanvas = memo(function GameCanvas({ game, cell, frame }: Props) {
+export const GameCanvas = memo(function GameCanvas({ game, cell, frame, loadout }: Props) {
   const { field } = game;
   const width = field.w * cell;
   const height = field.h * cell;
@@ -100,13 +103,20 @@ export const GameCanvas = memo(function GameCanvas({ game, cell, frame }: Props)
   // Dokunulmazken gemi yanıp söner; vurulduğunda patlama parıltısı çizilir.
   const blink = game.invulnerable > 0 && Math.floor(frame / 5) % 2 === 0;
   const crew: Shape[] = game.enemies.flatMap((enemy) => enemyShapes(enemy, look));
+  for (const shot of game.shots) crew.push(...shotShapes(shot));
   if (game.phase === 'dying') {
     crew.push({ kind: 'circle', x: look.x, y: look.y, r: 4, color: palette.danger, alpha: 0.55 });
   } else {
     crew.push(
-      ...shipShapes({ x: look.x, y: look.y, angle: facing.current, time, beaming: player.drawing }).map(
-        (shape) => (blink ? { ...shape, alpha: (shape.alpha ?? 1) * 0.4 } : shape)
-      )
+      ...shipShapes({
+        x: look.x,
+        y: look.y,
+        angle: facing.current,
+        time,
+        beaming: player.drawing,
+        loadout,
+        shield: game.shield,
+      }).map((shape) => (blink ? { ...shape, alpha: (shape.alpha ?? 1) * 0.4 } : shape))
     );
   }
 
@@ -148,39 +158,7 @@ export const GameCanvas = memo(function GameCanvas({ game, cell, frame }: Props)
         />
       ) : null}
 
-      {crew.map((shape, index) =>
-        shape.kind === 'circle' ? (
-          <Circle
-            key={index}
-            cx={shape.x * cell}
-            cy={shape.y * cell}
-            r={shape.r * cell}
-            color={shape.color}
-            opacity={shape.alpha ?? 1}
-          />
-        ) : (
-          <Path
-            key={index}
-            path={polygonPath(shape.points, cell)}
-            color={shape.color}
-            opacity={shape.alpha ?? 1}
-            style="fill"
-          />
-        )
-      )}
+      <ShapeNodes shapes={crew} cell={cell} />
     </Canvas>
   );
 });
-
-/** Şekil listesindeki çokgeni Skia yoluna çevirir. */
-function polygonPath(points: { x: number; y: number }[], cell: number) {
-  const path = Skia.Path.Make();
-  points.forEach((point, index) => {
-    const x = point.x * cell;
-    const y = point.y * cell;
-    if (index === 0) path.moveTo(x, y);
-    else path.lineTo(x, y);
-  });
-  path.close();
-  return path;
-}

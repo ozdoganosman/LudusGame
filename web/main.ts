@@ -1,23 +1,47 @@
 /**
- * Kuşat — web sürümü.
+ * Nanogemi — web sürümü.
  * Oynanışın tamamı src/engine içindeki platformdan bağımsız motordan gelir;
- * bu dosya yalnızca Canvas2D çizimi, girdi ve DOM arayüzünden sorumludur.
+ * bu dosya yalnızca Canvas2D çizimi, girdi, kampanya akışı ve DOM arayüzünden
+ * sorumludur.
  */
-import { FIELD_H, FIELD_W, START_LIVES } from '../src/engine/config';
+import { CAMPAIGN_LENGTH } from '../src/engine/campaign';
+import { FIELD_H, FIELD_W } from '../src/engine/config';
 import { Game } from '../src/engine/game';
 import { NEUTRAL, snapToEight } from '../src/engine/input';
+import { loadoutValue } from '../src/engine/upgrades';
+import type { PartId } from '../src/engine/upgrades';
 import type { Input } from '../src/engine/types';
 import { territoryOutline } from '../src/ui/contour';
 import type { Point } from '../src/ui/contour';
-import { enemyShapes, shipAngle, shipShapes } from '../src/ui/creatures';
+import { enemyShapes, shipAngle, shipShapes, shotShapes } from '../src/ui/creatures';
 import type { Shape } from '../src/ui/creatures';
-import { GAME_TITLE, MISSION_BRIEF, STORY_LINES, missionFor } from '../src/ui/story';
+import { partCards } from '../src/ui/parts';
+import {
+  PROFILE_KEY,
+  addGold,
+  buyPart,
+  emptyProfile,
+  parseProfile,
+  recordScore,
+  serializeProfile,
+  unlockMission,
+} from '../src/ui/profile';
+import type { Profile } from '../src/ui/profile';
+import {
+  CAMPAIGN_END_LINES,
+  GAME_TITLE,
+  MISSION_BRIEF,
+  SHIP_NAME,
+  STORY_LINES,
+  missionFor,
+  missionLabel,
+  missionProgress,
+} from '../src/ui/story';
 import { writeBackgroundPixels } from '../src/ui/gridImage';
 import { palette } from '../src/ui/palette';
 
-type Mode = 'menu' | 'playing' | 'paused' | 'levelClear' | 'gameOver';
+type Mode = 'menu' | 'brief' | 'playing' | 'paused' | 'levelClear' | 'gameOver' | 'shop';
 
-const HIGH_SCORE_KEY = 'nanogemi.highScore.v1';
 const KNOB_RANGE = 54;
 /** Tuvalin alan dışında bıraktığı pay (hücre): kenardaki gemi kırpılmasın. */
 const MARGIN = 2;
@@ -50,9 +74,11 @@ const ui = {
   mission: element('mission'),
   score: element('score'),
   high: element('high'),
+  gold: element('gold'),
   percent: element('percent'),
   barFill: element('bar-fill'),
   lives: element('lives'),
+  shieldPips: element('shield'),
   pause: element<HTMLButtonElement>('pause'),
   dive: element<HTMLButtonElement>('dive'),
   stickBase: element('stick-base'),
@@ -64,20 +90,34 @@ const ui = {
   hint: element('ov-hint'),
   primary: element<HTMLButtonElement>('ov-primary'),
   secondary: element<HTMLButtonElement>('ov-secondary'),
+  tertiary: element<HTMLButtonElement>('ov-tertiary'),
+  shop: element('shop'),
+  shopGold: element('shop-gold'),
+  shopValue: element('shop-value'),
+  shopList: element('shop-list'),
+  shopHint: element('shop-hint'),
+  shopClose: element<HTMLButtonElement>('shop-close'),
+  shipPreview: element<HTMLCanvasElement>('ship-preview'),
 };
 
-const game = new Game({ seed: Date.now() >>> 0 });
+let profile = loadProfile();
+const game = new Game({ seed: Date.now() >>> 0, loadout: profile.loadout });
+/** Brifingi açık olan görev; oyun başladığında motora verilir. */
+let mission = profile.unlocked;
+/** Devam eden bir sefer var mı (görev tamamlandıktan sonra puan ve can taşınır)? */
+let continuingRun = false;
 let mode: Mode = 'menu';
+/** Hangardan çıkınca dönülecek ekran. */
+let shopReturn: Mode = 'menu';
 let input: Input = NEUTRAL;
 /** Dalış tuşu basılı mı: kenardan boş alana ancak bu açıkken çıkılır. */
 let diving = false;
-let highScore = loadHighScore();
 let cell = 4;
 let gridVersion = -1;
 let hudTimer = 0;
 /** Geminin baktığı yön; dururken son yön korunur. */
 let facing = -Math.PI / 2;
-let summary = { level: 1, percent: 0, score: 0, bonus: 0 };
+let summary = { level: 1, percent: 0, score: 0, bonus: 0, gold: 0 };
 
 // Zemin (boş alan + nokta dokusu) bir kez üretilir, her karede ölçeklenerek çizilir.
 const backgroundCanvas = document.createElement('canvas');
@@ -91,23 +131,30 @@ backgroundContext.putImageData(backgroundImage, 0, 0);
 /** Ele geçirilmiş alanın sınırı; yalnızca hücreler değişince yeniden hesaplanır. */
 let outline: Point[][] = [];
 
-function loadHighScore(): number {
+// ------------------------------------------------------------------- profil
+
+function loadProfile(): Profile {
   try {
-    const raw = localStorage.getItem(HIGH_SCORE_KEY);
-    const value = raw === null ? 0 : Number(raw);
-    return Number.isFinite(value) && value > 0 ? value : 0;
+    return parseProfile(localStorage.getItem(PROFILE_KEY));
   } catch {
-    return 0;
+    return emptyProfile();
   }
 }
 
-function saveHighScore(score: number): void {
+function saveProfile(): void {
   try {
-    localStorage.setItem(HIGH_SCORE_KEY, String(Math.round(score)));
+    localStorage.setItem(PROFILE_KEY, serializeProfile(profile));
   } catch {
-    // Depolama kapalıysa oyun yine oynanabilir.
+    // Depolama kapalıysa oyun yine oynanabilir; ilerleme saklanmaz.
   }
 }
+
+/** Kasadaki altın + o an seferde kazanılan. */
+function purse(): number {
+  return profile.gold + game.gold;
+}
+
+const tr = (value: number) => value.toLocaleString('tr-TR');
 
 // ------------------------------------------------------------------ yerleşim
 
@@ -202,31 +249,32 @@ function drawTrail(): void {
   context.stroke();
 }
 
-/** Şekil listesini (hücre biriminde) tuvale çizer. */
-function drawShapes(shapes: Shape[]): void {
+/** Şekil listesini (hücre biriminde) verilen bağlama çizer. */
+function drawShapes(target: CanvasRenderingContext2D, shapes: Shape[], scale: number): void {
   for (const shape of shapes) {
-    context.globalAlpha = shape.alpha ?? 1;
-    context.fillStyle = shape.color;
-    context.beginPath();
+    target.globalAlpha = shape.alpha ?? 1;
+    target.fillStyle = shape.color;
+    target.beginPath();
     if (shape.kind === 'circle') {
-      context.arc(shape.x * cell, shape.y * cell, shape.r * cell, 0, Math.PI * 2);
+      target.arc(shape.x * scale, shape.y * scale, shape.r * scale, 0, Math.PI * 2);
     } else {
       shape.points.forEach((point, index) => {
-        const x = point.x * cell;
-        const y = point.y * cell;
-        if (index === 0) context.moveTo(x, y);
-        else context.lineTo(x, y);
+        const x = point.x * scale;
+        const y = point.y * scale;
+        if (index === 0) target.moveTo(x, y);
+        else target.lineTo(x, y);
       });
-      context.closePath();
+      target.closePath();
     }
-    context.fill();
+    target.fill();
   }
-  context.globalAlpha = 1;
+  target.globalAlpha = 1;
 }
 
 function drawCrew(): void {
   const look = { x: game.player.x + 0.5, y: game.player.y + 0.5 };
-  for (const enemy of game.enemies) drawShapes(enemyShapes(enemy, look));
+  for (const enemy of game.enemies) drawShapes(context, enemyShapes(enemy, look), cell);
+  for (const shot of game.shots) drawShapes(context, shotShapes(shot), cell);
 
   if (game.phase === 'dying') {
     // Gemi vuruldu: kısa bir patlama parıltısı.
@@ -243,13 +291,17 @@ function drawCrew(): void {
   const blink = game.invulnerable > 0 && Math.floor(performance.now() / 90) % 2 === 0;
   context.globalAlpha = blink ? 0.4 : 1;
   drawShapes(
+    context,
     shipShapes({
       x: look.x,
       y: look.y,
       angle: facing,
       time: performance.now() / 1000,
       beaming: game.player.drawing,
-    })
+      loadout: profile.loadout,
+      shield: game.shield,
+    }),
+    cell
   );
   context.globalAlpha = 1;
 }
@@ -260,10 +312,10 @@ function refreshHud(): void {
   const target = game.targetPercent;
   const percent = game.percent;
   const reached = percent >= target;
-  const mission = missionFor(game.level);
-  ui.mission.textContent = mission.wave > 1 ? `${mission.name} · ${mission.wave}. DALGA` : mission.name;
-  ui.score.textContent = game.score.toLocaleString('tr-TR');
-  ui.high.textContent = `REKOR ${highScore.toLocaleString('tr-TR')}`;
+  ui.mission.textContent = missionLabel(game.level);
+  ui.score.textContent = tr(game.score);
+  ui.high.textContent = `REKOR ${tr(profile.highScore)}`;
+  ui.gold.textContent = tr(purse());
   ui.percent.textContent = `%${percent.toFixed(1)} / %${target}`;
   ui.percent.classList.toggle('reached', reached);
   ui.barFill.classList.toggle('reached', reached);
@@ -275,18 +327,46 @@ function refreshHud(): void {
       ...Array.from({ length: lives }, () => document.createElement('span'))
     );
   }
+
+  // Kalkan göstergesi: dolu kutucuklar emilecek darbeleri gösterir.
+  const charges = game.shipStats.shieldCharges;
+  if (ui.shieldPips.childElementCount !== charges) {
+    ui.shieldPips.replaceChildren(
+      ...Array.from({ length: charges }, () => document.createElement('span'))
+    );
+  }
+  Array.from(ui.shieldPips.children).forEach((pip, index) => {
+    pip.classList.toggle('full', index < game.shield);
+  });
 }
+
+// ------------------------------------------------------------------ paneller
 
 type OverlayConfig = {
   title: string;
   subtitle?: string;
-  /** Seyir defteri kutusundaki satırlar (açılış hikâyesi). */
+  /** Seyir defteri kutusundaki satırlar (hikâye). */
   story?: string[];
   rows?: { label: string; value: string }[];
   hint?: string;
   primary: { label: string; onPress: () => void };
   secondary?: { label: string; onPress: () => void };
+  tertiary?: { label: string; onPress: () => void };
 };
+
+function setButton(
+  button: HTMLButtonElement,
+  action?: { label: string; onPress: () => void }
+): void {
+  if (!action) {
+    button.hidden = true;
+    button.onclick = null;
+    return;
+  }
+  button.hidden = false;
+  button.textContent = action.label;
+  button.onclick = action.onPress;
+}
 
 function showOverlay(config: OverlayConfig): void {
   ui.title.textContent = config.title;
@@ -310,53 +390,95 @@ function showOverlay(config: OverlayConfig): void {
   );
   ui.primary.textContent = config.primary.label;
   ui.primary.onclick = config.primary.onPress;
-  if (config.secondary) {
-    ui.secondary.hidden = false;
-    ui.secondary.textContent = config.secondary.label;
-    ui.secondary.onclick = config.secondary.onPress;
-  } else {
-    ui.secondary.hidden = true;
-    ui.secondary.onclick = null;
-  }
+  setButton(ui.secondary, config.secondary);
+  setButton(ui.tertiary, config.tertiary);
   overlay.hidden = false;
+  ui.shop.hidden = true;
 }
+
+const hangarAction = () => ({ label: 'HANGAR', onPress: openShop });
 
 function render(): void {
   switch (mode) {
-    case 'menu':
+    case 'menu': {
+      const fresh = profile.unlocked === 1 && !profile.seenIntro;
       showOverlay({
         title: GAME_TITLE.toLocaleUpperCase('tr-TR'),
-        subtitle: 'Küçültülmüş bir geminin kaptanısın.',
+        subtitle: `${SHIP_NAME} · küçültülmüş bir geminin kaptanısın.`,
         story: STORY_LINES,
-        hint: `${MISSION_BRIEF} Alanın %${game.targetPercent} kadarını temizleyince görev tamamlanır.`,
-        primary: { label: 'GÖREVE BAŞLA', onPress: startGame },
+        rows: [
+          { label: 'Altın', value: tr(profile.gold) },
+          { label: 'İlerleme', value: missionProgress(profile.unlocked) },
+          { label: 'Rekor', value: tr(profile.highScore) },
+        ],
+        hint: MISSION_BRIEF,
+        primary: {
+          label: fresh ? 'GÖREVE BAŞLA' : 'GÖREVE DEVAM',
+          onPress: () => openBrief(profile.unlocked, false),
+        },
+        secondary: hangarAction(),
+        tertiary: fresh
+          ? undefined
+          : { label: '1. BÖLÜMDEN OYNA', onPress: () => openBrief(1, false) },
       });
       break;
+    }
+    case 'brief': {
+      const next = missionFor(mission);
+      showOverlay({
+        title: next.name,
+        subtitle: `${missionProgress(mission)} · ${next.title}`,
+        story: next.story,
+        rows: [
+          { label: 'Temizlenecek alan', value: `%${next.target}` },
+          { label: 'Görev primi', value: `${tr(next.reward)} altın` },
+          { label: 'Altın', value: tr(purse()) },
+        ],
+        hint: next.hint,
+        primary: { label: 'DALIŞA GEÇ', onPress: launch },
+        secondary: hangarAction(),
+        tertiary: { label: 'ANA EKRAN', onPress: () => setMode('menu') },
+      });
+      break;
+    }
     case 'paused':
       showOverlay({
         title: 'BEKLEMEDE',
-        subtitle: missionFor(game.level).name,
+        subtitle: missionLabel(game.level),
         rows: [
           { label: 'Temizlenen', value: `%${game.percent.toFixed(1)}` },
-          { label: 'Puan', value: game.score.toLocaleString('tr-TR') },
+          { label: 'Puan', value: tr(game.score) },
           { label: 'Kalan gemi', value: String(game.lives) },
+          { label: 'Altın', value: tr(purse()) },
         ],
         hint: 'Yön için ekrana dokunup sürükle (yön tuşları / WASD). Işın için sağdaki tuş ya da boşluk. ESC duraklatır.',
         primary: { label: 'DEVAM ET', onPress: () => setMode('playing') },
-        secondary: { label: 'YENİDEN BAŞLA', onPress: startGame },
+        secondary: hangarAction(),
+        tertiary: { label: 'ANA EKRAN', onPress: () => setMode('menu') },
       });
       break;
     case 'levelClear': {
-      const next = missionFor(summary.level + 1);
+      const cleared = missionFor(summary.level);
+      const finale = cleared.finale;
       showOverlay({
-        title: 'DOKU TEMİZ',
-        subtitle: `Sıradaki görev: ${next.name}. ${next.hint}`,
+        title: finale ? 'ÇEKİRDEK DAĞILDI' : 'DOKU TEMİZ',
+        subtitle: finale
+          ? 'Ana hikâye tamamlandı.'
+          : `Sıradaki görev: ${missionFor(summary.level + 1).name}`,
+        story: finale ? CAMPAIGN_END_LINES : undefined,
         rows: [
           { label: 'Temizlenen', value: `%${summary.percent.toFixed(1)}` },
-          { label: 'Görev primi', value: `+${summary.bonus.toLocaleString('tr-TR')}` },
-          { label: 'Puan', value: summary.score.toLocaleString('tr-TR') },
+          { label: 'Görev primi', value: `+${tr(summary.bonus)} puan` },
+          { label: 'Kazanılan altın', value: `+${tr(summary.gold)}` },
+          { label: 'Kasa', value: tr(profile.gold) },
         ],
-        primary: { label: 'SONRAKİ GÖREV', onPress: nextLevel },
+        hint: 'Altınla hangarda kanat, motor, kuyruk, kompozit gövde, ışın topu ve kalkan alabilirsin.',
+        primary: {
+          label: 'SONRAKİ GÖREV',
+          onPress: () => openBrief(summary.level + 1, true),
+        },
+        secondary: hangarAction(),
+        tertiary: { label: 'ANA EKRAN', onPress: () => setMode('menu') },
       });
       break;
     }
@@ -364,20 +486,29 @@ function render(): void {
       showOverlay({
         title: 'FİLO TÜKENDİ',
         subtitle:
-          summary.score >= highScore && summary.score > 0
+          summary.score >= profile.highScore && summary.score > 0
             ? 'Yeni rekor! Hasta bir süre daha dayanacak.'
             : 'Patojen dokuyu ele geçirdi.',
         rows: [
-          { label: 'Puan', value: summary.score.toLocaleString('tr-TR') },
-          { label: 'Ulaşılan görev', value: missionFor(summary.level).name },
-          { label: 'Rekor', value: highScore.toLocaleString('tr-TR') },
+          { label: 'Puan', value: tr(summary.score) },
+          { label: 'Kalınan görev', value: missionFor(summary.level).name },
+          { label: 'Kazanılan altın', value: `+${tr(summary.gold)}` },
+          { label: 'Kasa', value: tr(profile.gold) },
         ],
-        primary: { label: 'YENİDEN GÖREVE', onPress: startGame },
-        secondary: { label: 'ANA EKRAN', onPress: () => setMode('menu') },
+        hint: 'Kazandığın altın kasada kalır; gemiyi güçlendirip aynı göreve dönebilirsin.',
+        primary: { label: 'GÖREVE DÖN', onPress: () => openBrief(summary.level, false) },
+        secondary: hangarAction(),
+        tertiary: { label: 'ANA EKRAN', onPress: () => setMode('menu') },
       });
+      break;
+    case 'shop':
+      overlay.hidden = true;
+      ui.shop.hidden = false;
+      renderShop();
       break;
     case 'playing':
       overlay.hidden = true;
+      ui.shop.hidden = true;
       break;
   }
   refreshHud();
@@ -390,17 +521,141 @@ function setMode(next: Mode): void {
   render();
 }
 
-function startGame(): void {
-  game.start();
+/** Görev brifingi; continueRun true ise puan ve can taşınır. */
+function openBrief(index: number, continueRun: boolean): void {
+  mission = index;
+  continuingRun = continueRun;
+  if (!profile.seenIntro) {
+    profile = { ...profile, seenIntro: true };
+    saveProfile();
+  }
+  setMode('brief');
+}
+
+function launch(): void {
+  game.setLoadout(profile.loadout);
+  if (continuingRun && mission === game.level + 1) game.nextLevel();
+  else game.start(mission);
+  continuingRun = false;
   gridVersion = -1;
   setMode('playing');
 }
 
-function nextLevel(): void {
-  game.nextLevel();
-  gridVersion = -1;
-  setMode('playing');
+// ------------------------------------------------------------------- hangar
+
+function openShop(): void {
+  if (mode !== 'shop') shopReturn = mode;
+  setMode('shop');
 }
+
+function closeShop(): void {
+  setMode(shopReturn === 'shop' ? 'menu' : shopReturn);
+}
+
+function renderShop(): void {
+  const gold = purse();
+  ui.shopGold.textContent = tr(gold);
+  ui.shopValue.textContent = tr(loadoutValue(profile.loadout));
+  ui.shopHint.textContent =
+    shopReturn === 'paused'
+      ? 'Görev sürüyor: hız ve silah hemen, ek gemi ve kalkan sıradaki görevde geçerli.'
+      : 'Altın; kapatılan alan, düşürülen düşman ve görev primlerinden gelir.';
+
+  ui.shopList.replaceChildren(
+    ...partCards(profile.loadout, gold).map((card) => {
+      const row = document.createElement('div');
+      row.className = card.maxed ? 'part maxed' : 'part';
+
+      const name = document.createElement('h2');
+      name.textContent = card.name;
+
+      const pips = document.createElement('div');
+      pips.className = 'pips';
+      for (let i = 0; i < 4; i++) {
+        const pip = document.createElement('i');
+        if (i < card.level) pip.className = 'on';
+        pips.append(pip);
+      }
+
+      const effect = document.createElement('p');
+      effect.className = 'effect';
+      effect.textContent = `${card.blurb} Şimdi: ${card.value}.`;
+      if (card.next) {
+        const arrow = document.createElement('b');
+        arrow.textContent = ` Yükseltince: ${card.next}.`;
+        effect.append(arrow);
+      }
+
+      const button = document.createElement('button');
+      button.type = 'button';
+      if (card.maxed) {
+        button.textContent = 'TAM DONANIM';
+        button.disabled = true;
+      } else {
+        button.append(document.createTextNode('YÜKSELT'));
+        const price = document.createElement('span');
+        price.className = 'coin';
+        price.textContent = tr(card.cost ?? 0);
+        button.append(price);
+        button.disabled = !card.affordable;
+        button.onclick = () => purchase(card.id);
+      }
+
+      row.append(name, pips, effect, button);
+      return row;
+    })
+  );
+}
+
+function purchase(id: PartId): void {
+  // Seferde kazanılan altın önce kasaya girer; alım tek bir cüzdandan yapılır.
+  const earned = game.takeGold();
+  if (earned > 0) profile = addGold(profile, earned);
+
+  const result = buyPart(profile, id);
+  profile = result.profile;
+  // Kasaya aktarılan altın da, alım da hemen kaydedilir.
+  if (earned > 0 || result.bought) saveProfile();
+  if (result.bought) game.setLoadout(profile.loadout);
+
+  renderShop();
+  refreshHud();
+}
+
+/** Hangardaki gemi önizlemesi: satın alınan parçalarla, burnu sağa dönük. */
+function drawShipPreview(): void {
+  if (ui.shop.hidden) return;
+  const view = require2d(ui.shipPreview);
+  const ratio = Math.min(window.devicePixelRatio || 1, 2);
+  const width = ui.shipPreview.clientWidth || 240;
+  const height = Math.round(width * 0.55);
+  if (ui.shipPreview.width !== Math.round(width * ratio)) {
+    ui.shipPreview.width = Math.round(width * ratio);
+    ui.shipPreview.height = Math.round(height * ratio);
+  }
+  view.setTransform(ratio, 0, 0, ratio, 0, 0);
+  view.clearRect(0, 0, width, height);
+
+  const scale = Math.min(width / 8, height / 5.4);
+  view.save();
+  view.translate(width / 2 - 4 * scale, height / 2 - 2.7 * scale);
+  drawShapes(
+    view,
+    shipShapes({
+      x: 4,
+      y: 2.7,
+      angle: 0,
+      time: performance.now() / 1000,
+      beaming: false,
+      loadout: profile.loadout,
+      shield: game.shipStats.shieldCharges,
+    }),
+    scale
+  );
+  view.restore();
+}
+
+ui.shopClose.addEventListener('click', closeShop);
 
 // -------------------------------------------------------------------- girdi
 
@@ -439,11 +694,13 @@ window.addEventListener('keydown', (event) => {
     event.preventDefault();
     if (mode === 'playing') setMode('paused');
     else if (mode === 'paused') setMode('playing');
+    else if (mode === 'shop') closeShop();
     return;
   }
   if (event.code === 'Enter' && mode !== 'playing') {
     event.preventDefault();
-    ui.primary.click();
+    if (mode === 'shop') closeShop();
+    else ui.primary.click();
     return;
   }
   if (!(event.code in KEY_VECTORS)) return;
@@ -533,20 +790,35 @@ function tick(timestamp: number): void {
   if (mode === 'playing' && dt > 0) {
     for (const event of game.update(dt, { dx: input.dx, dy: input.dy, dive: diving })) {
       if (event.type === 'level-clear') {
+        // Sefer altını kasaya girer, sıradaki bölüm açılır.
+        const earned = game.takeGold();
+        profile = addGold(profile, earned);
+        profile = recordScore(profile, game.score);
+        // Kampanya sonrası ilerleme 13'te (1. mutasyon dalgası) durur: dönen
+        // oyuncu dalgalara baştan girer, imkânsız bir dalgaya düşmez.
+        profile = unlockMission(profile, Math.min(event.level + 1, CAMPAIGN_LENGTH + 1));
+        saveProfile();
         summary = {
           level: event.level,
           percent: event.percent,
           score: game.score,
           bonus: event.bonus,
+          gold: earned,
         };
         setMode('levelClear');
       }
       if (event.type === 'game-over') {
-        summary = { level: event.level, percent: game.percent, score: event.score, bonus: 0 };
-        if (event.score > highScore) {
-          highScore = event.score;
-          saveHighScore(highScore);
-        }
+        const earned = game.takeGold();
+        profile = addGold(profile, earned);
+        profile = recordScore(profile, event.score);
+        saveProfile();
+        summary = {
+          level: event.level,
+          percent: game.percent,
+          score: event.score,
+          bonus: 0,
+          gold: earned,
+        };
         setMode('gameOver');
       }
     }
@@ -559,12 +831,10 @@ function tick(timestamp: number): void {
   }
 
   draw();
+  drawShipPreview();
   requestAnimationFrame(tick);
 }
 
-ui.lives.replaceChildren(
-  ...Array.from({ length: START_LIVES }, () => document.createElement('span'))
-);
 resize();
 render();
 requestAnimationFrame(tick);

@@ -10,6 +10,12 @@ type Props = {
   lives: number;
   percent: number;
   target: number;
+  /** Kasadaki + bu seferde kazanılan altın. */
+  gold: number;
+  /** Dolu kalkan sayısı. */
+  shield: number;
+  /** Kalkanın toplam kapasitesi; 0 ise gösterge çizilmez. */
+  shieldCharges: number;
   onPause: () => void;
 };
 
@@ -20,6 +26,9 @@ export const Hud = memo(function Hud({
   lives,
   percent,
   target,
+  gold,
+  shield,
+  shieldCharges,
   onPause,
 }: Props) {
   const progress = Math.min(100, (percent / target) * 100);
@@ -60,10 +69,20 @@ export const Hud = memo(function Hud({
         </Text>
       </View>
 
-      <View style={styles.lives}>
-        {Array.from({ length: Math.max(0, lives) }, (_, index) => (
-          <View key={index} style={styles.life} />
-        ))}
+      <View style={styles.row}>
+        <View style={styles.lives}>
+          {Array.from({ length: Math.max(0, lives) }, (_, index) => (
+            <View key={index} style={styles.life} />
+          ))}
+          {Array.from({ length: shieldCharges }, (_, index) => (
+            <View key={`shield-${index}`} style={[styles.pip, index < shield && styles.pipFull]} />
+          ))}
+        </View>
+
+        <View style={styles.purse}>
+          <View style={styles.coin} />
+          <Text style={styles.gold}>{gold.toLocaleString('tr-TR')}</Text>
+        </View>
       </View>
     </View>
   );
@@ -145,8 +164,36 @@ const styles = StyleSheet.create({
   },
   lives: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: 6,
+    height: 12,
+  },
+  pip: {
+    width: 10,
     height: 10,
+    borderRadius: 3,
+    borderWidth: 2,
+    borderColor: palette.filledEdge,
+  },
+  pipFull: {
+    backgroundColor: palette.filledEdge,
+  },
+  purse: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  coin: {
+    width: 11,
+    height: 11,
+    borderRadius: 6,
+    backgroundColor: palette.gold,
+  },
+  gold: {
+    color: palette.gold,
+    fontSize: 13,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
   },
   life: {
     width: 10,

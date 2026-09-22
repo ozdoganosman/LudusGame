@@ -31,17 +31,18 @@ export type LevelConfig = {
 };
 
 /**
- * Zorluk eğrisi. İlk seviye öğrenmeye açık olsun diye tek gezginle başlar;
- * avcılar 4. seviyede sahneye girer.
+ * Zorluk eğrisi. İlk görev öğrenmeye açık olsun diye tek mikropla başlar;
+ * virüsler 4. görevde sahneye girer. Kampanya bittikten sonra da artmaya
+ * devam eder, üst sınırlar MAX_ENEMIES ile dengelenir.
  */
 export function levelConfig(level: number): LevelConfig {
   const n = Math.max(1, level);
   return {
-    drifters: Math.min(5, 1 + Math.floor(n / 2)),
-    hunters: n < 4 ? 0 : Math.min(3, Math.floor((n - 2) / 2)),
+    drifters: Math.min(7, 1 + Math.floor(n / 2)),
+    hunters: n < 4 ? 0 : Math.min(4, Math.floor((n - 2) / 2)),
     drifterSpeed: 6.5 + n * 0.8,
     hunterSpeed: 6 + n * 0.6,
     bossSpeed: 8 + n * 0.9,
-    spawnInterval: Math.max(12, 34 - n * 2),
+    spawnInterval: Math.max(10, 34 - n * 2),
   };
 }

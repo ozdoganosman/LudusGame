@@ -1,21 +1,20 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const HIGH_SCORE_KEY = 'kusat.highScore.v1';
+import { PROFILE_KEY, emptyProfile, parseProfile, serializeProfile } from './profile';
+import type { Profile } from './profile';
 
-export async function loadHighScore(): Promise<number> {
+/** Kayıtlı profili okur; depolama erişilemezse boş profille devam edilir. */
+export async function loadProfile(): Promise<Profile> {
   try {
-    const raw = await AsyncStorage.getItem(HIGH_SCORE_KEY);
-    const value = raw === null ? 0 : Number(raw);
-    return Number.isFinite(value) && value > 0 ? value : 0;
+    return parseProfile(await AsyncStorage.getItem(PROFILE_KEY));
   } catch {
-    // Depolama okunamazsa oyun yine oynanabilir olmalı.
-    return 0;
+    return emptyProfile();
   }
 }
 
-export async function saveHighScore(score: number): Promise<void> {
+export async function saveProfile(profile: Profile): Promise<void> {
   try {
-    await AsyncStorage.setItem(HIGH_SCORE_KEY, String(Math.round(score)));
+    await AsyncStorage.setItem(PROFILE_KEY, serializeProfile(profile));
   } catch {
     // Yazma hatası oynanışı etkilemez.
   }

@@ -14,11 +14,14 @@
 
     <div class="hud-row gauge">
       <div class="bar"><div id="bar-fill"></div></div>
-      <span id="percent">%0.0 / %80</span>
+      <span id="percent">%0.0 / %60</span>
     </div>
 
     <div class="hud-row meta">
       <div id="lives" class="lives" aria-label="Kalan gemi"></div>
+      <div id="shield" class="shield" aria-label="Kalkan"></div>
+      <span class="spacer"></span>
+      <span class="coin" id="gold">0</span>
       <span class="label" id="high">REKOR 0</span>
     </div>
   </header>
@@ -43,5 +46,24 @@
     <p class="hint" id="ov-hint"></p>
     <button id="ov-primary" type="button"></button>
     <button id="ov-secondary" class="ghost" type="button" hidden></button>
+    <button id="ov-tertiary" class="ghost" type="button" hidden></button>
+  </div>
+</div>
+
+<div id="shop" hidden>
+  <div class="panel shop-panel">
+    <h1>HANGAR</h1>
+    <div class="shop-head">
+      <canvas id="ship-preview" width="240" height="132" aria-label="Gemi önizlemesi"></canvas>
+      <dl class="shop-purse">
+        <dt>ALTIN</dt>
+        <dd class="coin" id="shop-gold">0</dd>
+        <dt>GEMİ DEĞERİ</dt>
+        <dd id="shop-value">0</dd>
+      </dl>
+    </div>
+    <div id="shop-list"></div>
+    <p class="hint" id="shop-hint"></p>
+    <button id="shop-close" type="button">GERİ DÖN</button>
   </div>
 </div>

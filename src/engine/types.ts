@@ -24,6 +24,19 @@ export type Enemy = {
   spin: number;
 };
 
+/** Silah yükseltmesinin attığı mermi. */
+export type Shot = {
+  id: number;
+  /** Hücre koordinatı, kesirli. */
+  x: number;
+  y: number;
+  /** Hücre/saniye. */
+  vx: number;
+  vy: number;
+  /** Kalan menzil (hücre); tükenince mermi kaybolur. */
+  range: number;
+};
+
 export type Phase = 'ready' | 'playing' | 'dying' | 'levelClear' | 'gameOver';
 
 export type DeathCause = 'enemy' | 'trail-cut' | 'self';
@@ -42,8 +55,19 @@ export type Input = {
 
 export type GameEvent =
   | { type: 'trail-start' }
-  | { type: 'capture'; cells: number; trapped: number; points: number; percent: number }
+  | {
+      type: 'capture';
+      cells: number;
+      trapped: number;
+      points: number;
+      percent: number;
+      gold: number;
+    }
+  /** Kalkan bir darbeyi emdi: can gitmedi. */
+  | { type: 'shield-hit'; chargesLeft: number }
+  /** Silahla düşman düşürüldü. */
+  | { type: 'enemy-down'; kind: EnemyKind; points: number; gold: number }
   | { type: 'death'; cause: DeathCause; livesLeft: number }
   | { type: 'respawn' }
-  | { type: 'level-clear'; level: number; percent: number; bonus: number }
+  | { type: 'level-clear'; level: number; percent: number; bonus: number; gold: number }
   | { type: 'game-over'; score: number; level: number };

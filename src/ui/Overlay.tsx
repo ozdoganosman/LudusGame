@@ -17,10 +17,20 @@ type Props = {
   hint?: string;
   primary: OverlayAction;
   secondary?: OverlayAction;
+  tertiary?: OverlayAction;
 };
 
 /** Oyun alanının üzerine binen menü / duraklatma / sonuç paneli. */
-export function Overlay({ title, subtitle, story, rows, hint, primary, secondary }: Props) {
+export function Overlay({
+  title,
+  subtitle,
+  story,
+  rows,
+  hint,
+  primary,
+  secondary,
+  tertiary,
+}: Props) {
   return (
     <View style={styles.backdrop}>
       <View style={styles.panel}>
@@ -54,6 +64,9 @@ export function Overlay({ title, subtitle, story, rows, hint, primary, secondary
           <Button label={primary.label} onPress={primary.onPress} />
           {secondary ? (
             <Button label={secondary.label} onPress={secondary.onPress} variant="ghost" />
+          ) : null}
+          {tertiary ? (
+            <Button label={tertiary.label} onPress={tertiary.onPress} variant="ghost" />
           ) : null}
         </View>
       </View>

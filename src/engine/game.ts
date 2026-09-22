@@ -1,21 +1,22 @@
+import { KILL_GOLD, captureGold, missionPlan } from './campaign';
+import type { MissionPlan } from './campaign';
 import {
-  DEATH_FREEZE,
   FIELD_H,
   FIELD_W,
   LEVEL_CLEAR_FREEZE,
   MAX_DT,
   MAX_ENEMIES,
-  PLAYER_SPEED,
   RESPAWN_INVULN,
   START_LIVES,
-  TARGET_PERCENT,
   levelConfig,
 } from './config';
 import { Field, clearTrail, closeTrail } from './field';
 import { createRng } from './rng';
 import type { Rng } from './rng';
+import { defaultLoadout, normalizeLoadout, shipStats } from './upgrades';
+import type { Loadout, ShipStats } from './upgrades';
 import { EMPTY, FILLED, TRAIL } from './types';
-import type { DeathCause, Enemy, GameEvent, Input, Phase, Vec } from './types';
+import type { DeathCause, Enemy, GameEvent, Input, Phase, Shot, Vec } from './types';
 
 export type Player = {
   /** Hücre koordinatı, tam sayı. */
@@ -32,26 +33,46 @@ export type GameOptions = {
   height?: number;
   seed?: number;
   lives?: number;
+  /** Verilirse kampanyanın hedef yüzdesini ezer (testler ve serbest oyun için). */
   targetPercent?: number;
+  /** Satın alınmış gemi parçaları; verilmezse fabrika çıkışı. */
+  loadout?: Partial<Loadout>;
 };
+
+/** Tek karede havada olabilecek en fazla mermi. */
+const MAX_SHOTS = 12;
 
 const NO_INPUT: Input = { dx: 0, dy: 0 };
 
 export class Game {
   readonly field: Field;
-  readonly targetPercent: number;
+  /** Bu görevi tamamlamak için gereken temizlik yüzdesi. */
+  targetPercent: number;
   readonly player: Player = { x: 0, y: 0, dx: 0, dy: 0, drawing: false };
 
   trail: Vec[] = [];
   enemies: Enemy[] = [];
+  /** Silah yükseltmesinin havadaki mermileri. */
+  shots: Shot[] = [];
+  /** Oynanan görev numarası (1'den başlar). */
   level = 1;
   lives: number;
   score = 0;
+  /** Bu seferde kazanılan altın; arayüz görev sonunda kasaya aktarır. */
+  gold = 0;
+  /** Kalkanın o an emebileceği darbe sayısı. */
+  shield = 0;
   phase: Phase = 'ready';
   /** Kalan dokunulmazlık süresi (saniye). */
   invulnerable = 0;
 
-  private readonly startLives: number;
+  private loadout: Loadout;
+  private stats: ShipStats;
+  private readonly baseLives: number;
+  private readonly targetOverride?: number;
+  private shieldTimer = 0;
+  private shotTimer = 0;
+  private nextShotId = 1;
   private rng: Rng;
   private seed: number;
   private freeze = 0;
@@ -65,9 +86,12 @@ export class Game {
 
   constructor(options: GameOptions = {}) {
     this.field = new Field(options.width ?? FIELD_W, options.height ?? FIELD_H);
-    this.targetPercent = options.targetPercent ?? TARGET_PERCENT;
-    this.startLives = options.lives ?? START_LIVES;
-    this.lives = this.startLives;
+    this.loadout = options.loadout ? normalizeLoadout(options.loadout) : defaultLoadout();
+    this.stats = shipStats(this.loadout);
+    this.targetOverride = options.targetPercent;
+    this.targetPercent = options.targetPercent ?? missionPlan(1).target;
+    this.baseLives = options.lives ?? START_LIVES;
+    this.lives = this.maxLives;
     this.seed = options.seed ?? 0x9e3779b9;
     this.rng = createRng(this.seed);
   }
@@ -76,19 +100,59 @@ export class Game {
     return this.field.percent();
   }
 
-  /** Yeni oyun: puan, can ve seviye sıfırlanır. */
-  start(): void {
-    this.score = 0;
-    this.lives = this.startLives;
-    this.level = 1;
-    this.rng = createRng(this.seed);
-    this.startLevel(1);
+  /** Kompozit gövdeyle artan başlangıç can sayısı. */
+  get maxLives(): number {
+    return this.baseLives + this.stats.extraLives;
   }
 
-  /** Seviye kurulumu: alan temizlenir, oyuncu ve düşmanlar yerleştirilir. */
-  startLevel(level: number): void {
-    const config = levelConfig(level);
-    this.level = level;
+  /** O an oynanan görevin planı (hedef, kadro, prim). */
+  get plan(): MissionPlan {
+    return missionPlan(this.level);
+  }
+
+  /** Geminin yükseltmelerden gelen oynanış değerleri. */
+  get shipStats(): ShipStats {
+    return this.stats;
+  }
+
+  /**
+   * Satın alınan parçaları uygular. Görevler arasında çağrılır; can sayısı
+   * bir sonraki görevde yenilenir.
+   */
+  setLoadout(loadout: Partial<Loadout>): void {
+    this.loadout = normalizeLoadout(loadout);
+    this.stats = shipStats(this.loadout);
+  }
+
+  /** Kazanılan altını arayüze devreder ve sayacı sıfırlar. */
+  takeGold(): number {
+    const earned = this.gold;
+    this.gold = 0;
+    return earned;
+  }
+
+  /**
+   * Yeni sefer: puan, can ve altın sıfırlanır.
+   * @param mission kaçıncı görevden başlanacağı (kampanyada kalınan yer)
+   */
+  start(mission = 1): void {
+    this.score = 0;
+    this.gold = 0;
+    this.lives = this.maxLives;
+    this.rng = createRng(this.seed);
+    this.startMission(mission);
+  }
+
+  /** Görev kurulumu: alan temizlenir, oyuncu ve düşmanlar yerleştirilir. */
+  startMission(index: number): void {
+    const plan = missionPlan(index);
+    const config = plan.config;
+    this.level = plan.index;
+    this.targetPercent = this.targetOverride ?? plan.target;
+    this.shots = [];
+    this.shield = this.stats.shieldCharges;
+    this.shieldTimer = this.stats.shieldRecharge;
+    this.shotTimer = this.stats.shotInterval;
     this.field.reset();
     this.trail = [];
     this.stepAccumulator = 0;
@@ -119,9 +183,14 @@ export class Game {
     this.phase = 'playing';
   }
 
-  /** Seviye tamamlandıktan sonra sıradaki seviyeye geçer. */
+  /** Eski ad; görev kurulumuna yönlendirir. */
+  startLevel(level: number): void {
+    this.startMission(level);
+  }
+
+  /** Görev tamamlandıktan sonra sıradaki göreve geçer. */
   nextLevel(): void {
-    this.startLevel(this.level + 1);
+    this.startMission(this.level + 1);
   }
 
   /**
@@ -147,11 +216,15 @@ export class Game {
     }
 
     if (this.invulnerable > 0) this.invulnerable -= step;
+    this.rechargeShield(step);
 
     this.movePlayer(step, input);
     if (this.phase !== 'playing') return this.events;
 
     this.moveEnemies(step);
+    if (this.phase !== 'playing') return this.events;
+
+    this.updateShots(step);
     if (this.phase !== 'playing') return this.events;
 
     this.handleSpawning(step);
@@ -174,7 +247,8 @@ export class Game {
     this.player.dx = dx;
     this.player.dy = dy;
     // Çapraz harekette hız tek eksene göre normalize edilir.
-    const speed = dx !== 0 && dy !== 0 ? PLAYER_SPEED / Math.SQRT2 : PLAYER_SPEED;
+    const base = this.speedFor(dx, dy);
+    const speed = dx !== 0 && dy !== 0 ? base / Math.SQRT2 : base;
     this.stepAccumulator += dt * speed;
 
     let guard = 8;
@@ -183,6 +257,18 @@ export class Game {
       this.stepPlayer(dx, dy);
       if (this.phase !== 'playing') return;
     }
+  }
+
+  /**
+   * Bu karenin hızı: kenarda kanat, dokuda motor, izi geri sararken kuyruk
+   * belirler. Yükseltmeler yoksa üçü de fabrika hızıdır.
+   */
+  private speedFor(dx: number, dy: number): number {
+    const { player, stats } = this;
+    if (!player.drawing) return stats.edgeSpeed;
+    const behind = this.cellBehind();
+    const retracing = behind.x === player.x + dx && behind.y === player.y + dy;
+    return retracing ? stats.diveSpeed * stats.retraceBoost : stats.diveSpeed;
   }
 
   private stepPlayer(dx: number, dy: number): void {
@@ -293,7 +379,9 @@ export class Game {
   private finishTrail(): void {
     const result = closeTrail(this.field, this.trail, this.enemies);
     const points = result.cells * (8 + 2 * this.level) + result.trapped.length * 400 * this.level;
+    const gold = captureGold(result.cells, result.trapped.length);
     this.score += points;
+    this.gold += gold;
 
     if (result.trapped.length > 0) {
       const killed = new Set(result.trapped);
@@ -310,7 +398,90 @@ export class Game {
       trapped: result.trapped.length,
       points,
       percent: this.field.percent(),
+      gold,
     });
+  }
+
+  // ----------------------------------------------------------------- silah
+
+  /**
+   * Silah yükseltmesi otomatik ateş eder: gemi baktığı yöne belirli aralıkla
+   * ışın atar. Mikrop ve virüs tek isabetle düşer; patron vurulmaz, savrulur.
+   */
+  private updateShots(dt: number): void {
+    if (Number.isFinite(this.stats.shotInterval)) {
+      this.shotTimer -= dt;
+      if (this.shotTimer <= 0) {
+        this.shotTimer = this.stats.shotInterval;
+        this.fireShot();
+      }
+    }
+    if (this.shots.length === 0) return;
+
+    const survivors: Shot[] = [];
+    for (const shot of this.shots) {
+      const travelled = Math.hypot(shot.vx, shot.vy) * dt;
+      shot.x += shot.vx * dt;
+      shot.y += shot.vy * dt;
+      shot.range -= travelled;
+      if (shot.range <= 0) continue;
+
+      const cx = Math.floor(shot.x);
+      const cy = Math.floor(shot.y);
+      // Alan dışı ya da temizlenmiş doku: mermi orada söner.
+      if (!this.field.inBounds(cx, cy) || this.field.get(cx, cy) === FILLED) continue;
+      if (this.hitEnemy(shot)) continue;
+      survivors.push(shot);
+    }
+    this.shots = survivors;
+  }
+
+  private fireShot(): void {
+    if (this.shots.length >= MAX_SHOTS) return;
+    const { player, stats } = this;
+    const dx = player.dx;
+    const dy = player.dy === 0 && dx === 0 ? -1 : player.dy;
+    const length = Math.hypot(dx, dy) || 1;
+    this.shots.push({
+      id: this.nextShotId++,
+      x: player.x + 0.5 + (dx / length) * 1.1,
+      y: player.y + 0.5 + (dy / length) * 1.1,
+      vx: (dx / length) * stats.shotSpeed,
+      vy: (dy / length) * stats.shotSpeed,
+      range: stats.shotRange,
+    });
+  }
+
+  /** Merminin değdiği düşmanı işler; mermi harcandıysa true döner. */
+  private hitEnemy(shot: Shot): boolean {
+    for (const enemy of this.enemies) {
+      const reach = enemy.radius + 0.4;
+      if (Math.abs(enemy.x - shot.x) > reach || Math.abs(enemy.y - shot.y) > reach) continue;
+
+      if (enemy.kind === 'boss') {
+        // Patron ışınla öldürülemez; yalnızca geri savrulur.
+        enemy.vx = -enemy.vx;
+        enemy.vy = -enemy.vy;
+        return true;
+      }
+
+      this.enemies = this.enemies.filter((other) => other.id !== enemy.id);
+      const points = (enemy.kind === 'hunter' ? 300 : 150) * this.level;
+      this.score += points;
+      this.gold += KILL_GOLD;
+      this.events.push({ type: 'enemy-down', kind: enemy.kind, points, gold: KILL_GOLD });
+      return true;
+    }
+    return false;
+  }
+
+  /** Harcanan kalkan zamanla geri dolar. */
+  private rechargeShield(dt: number): void {
+    if (this.shield >= this.stats.shieldCharges) return;
+    this.shieldTimer -= dt;
+    if (this.shieldTimer > 0) return;
+    this.shield += 1;
+    this.shieldTimer = this.stats.shieldRecharge;
   }
 
   // --------------------------------------------------------------- düşmanlar
@@ -451,10 +622,17 @@ export class Game {
   // ------------------------------------------------------------ ölüm / bitiş
 
   private die(cause: DeathCause): void {
+    // Kalkan mikrop/virüs darbesini emer; kendi izine girmek affedilmez.
+    if (cause !== 'self' && this.shield > 0) {
+      this.absorbHit();
+      return;
+    }
+
     clearTrail(this.field, this.trail);
     this.trail = [];
     this.player.drawing = false;
     this.stepAccumulator = 0;
+    this.shots = [];
     this.lives -= 1;
 
     if (this.lives <= 0) {
@@ -466,8 +644,27 @@ export class Game {
     }
 
     this.phase = 'dying';
-    this.freeze = DEATH_FREEZE;
+    this.freeze = this.stats.deathFreeze;
     this.events.push({ type: 'death', cause, livesLeft: this.lives });
+  }
+
+  /**
+   * Kalkanlı darbe: iz silinir, gemi güvenli kenara çekilir, kısa süre
+   * dokunulmaz olur — ama can gitmez.
+   */
+  private absorbHit(): void {
+    clearTrail(this.field, this.trail);
+    this.trail = [];
+    this.player.drawing = false;
+    this.stepAccumulator = 0;
+    this.shield -= 1;
+    this.shieldTimer = this.stats.shieldRecharge;
+    this.invulnerable = Math.max(
+      this.invulnerable,
+      RESPAWN_INVULN * 0.75 + this.stats.invulnBonus
+    );
+    this.moveToNearestEdge();
+    this.events.push({ type: 'shield-hit', chargesLeft: this.shield });
   }
 
   private respawn(): void {
@@ -478,7 +675,7 @@ export class Game {
     this.player.y = spot.y;
     this.player.dx = 0;
     this.player.dy = -1;
-    this.invulnerable = RESPAWN_INVULN;
+    this.invulnerable = RESPAWN_INVULN + this.stats.invulnBonus;
     this.phase = 'playing';
     this.events.push({ type: 'respawn' });
   }
@@ -532,10 +729,12 @@ export class Game {
     if (this.field.percent() < this.targetPercent) return;
     const percent = this.field.percent();
     const bonus = Math.round(percent) * 20 * this.level + 1000;
+    const gold = this.plan.reward;
     this.score += bonus;
+    this.gold += gold;
     this.phase = 'levelClear';
     this.freeze = LEVEL_CLEAR_FREEZE;
-    this.events.push({ type: 'level-clear', level: this.level, percent, bonus });
+    this.events.push({ type: 'level-clear', level: this.level, percent, bonus, gold });
   }
 }
 

@@ -3,10 +3,15 @@
 Volfied / Qix tarzı alan kapatma oyunu — ama sahne insan vücudunun içi.
 
 Antibiyotikler işe yaramaz olmuştur; hastalıklara karşı son savunma, hastanın kan
-dolaşımına gönderilen küçültülmüş gemilerdir. Sen o filonun kaptanısın. Dokuyu
+dolaşımına gönderilen küçültülmüş gemilerdir. Sen *Kehribar*'ın kaptanısın. Dokuyu
 kenardan tarayarak temizler, ışın izini güvenli bölgeye bağladığında kapattığın
 alanı iyileştirirsin. Patojenin bulunduğu bölge temizlenmez — onu köşeye
 sıkıştırırsan dokunun geri kalanı bir hamlede iyileşir.
+
+Ana hikâye 12 bölüm: kılcal damardan beyin sapındaki çekirdeğe kadar, her bölüm
+bir öncekinden zor. Kapattığın alan, düşürdüğün düşman ve görev primleri **altın**
+kazandırır; altınla hangarda geminin altı parçasını yükseltirsin ve aldığın her
+parça gemide görünür.
 
 Aynı oyun motoru iki yerde çalışır: **mobil** (Expo / React Native + Skia) ve
 **web** (Canvas2D, statik, wasm yok).
@@ -19,7 +24,7 @@ Aynı oyun motoru iki yerde çalışır: **mobil** (Expo / React Native + Skia) 
 
 | Kural | Ayrıntı |
 | --- | --- |
-| Hedef | Dokunun **%80'ini** temizlemek |
+| Hedef | Bölümün istediği oranda dokuyu temizlemek (%60'tan başlar, son bölümde %86) |
 | Hareket | Gemi yalnızca temizlenmiş alanın **kenarında** yürür; bloğun içine giremez |
 | Işın | Kenardan hastalıklı dokuya yalnızca **IŞIN** tuşu basılıyken çıkılır |
 | Risk | Dokuya girdiğin anda iz bırakmaya başlarsın ve açıktasın |
@@ -28,9 +33,35 @@ Aynı oyun motoru iki yerde çalışır: **mobil** (Expo / React Native + Skia) 
 | Patojen (pembe) | Bulunduğu bölge temizlenemez, her yerde tehlikelidir |
 | Mikrop (renkli) | Rastgele seker; temizlenen bölgede kalırsa yok olur ve puan verir |
 | Virüs (mor) | 4. görevden sonra çıkar, gemiyi takip eder |
+| Işın topu | Satın alındıysa baktığın yöne otomatik ateş eder; mikrop ve virüsü düşürür, patronu savurur |
+| Kalkan | Satın alındıysa mikrop/virüs darbesini emer (iz gider, can gitmez) ve zamanla dolar |
 
-Her seviye bir doku: kılcal damar, soluk borusu, akciğer, mide astarı, kan
-dolaşımı, lenf düğümü, sinir ağı. Liste bitince yeni bir dalga başlar.
+### Ana hikâye ve görevler
+
+Bölümler sırayla açılır ve kaldığın yer kaydedilir. Her bölüm bir doku: kılcal
+damar, soluk borusu, akciğer, mide astarı, kan dolaşımı, lenf düğümü, kemik iliği,
+karaciğer, böbrek, kalp kapağı, omurilik, beyin sapı. Zorluk bölüm bölüm artar:
+temizlenmesi gereken alan büyür, düşman sayısı ve hızı yükselir, virüsler 4.
+bölümde girer. Çekirdek dağıldıktan sonra oyun bitmez — sonsuz **mutasyon
+dalgaları** başlar.
+
+Görevi tamamlarsan puan ve can sıradaki bölüme taşınır; filo tükenirse kazandığın
+altın kasada kalır, gemiyi güçlendirip aynı bölüme dönersin.
+
+### Hangar (yükseltmeler)
+
+| Parça | Etkisi |
+| --- | --- |
+| **Kanat** | Temizlenmiş alanın kenarında hız |
+| **Motor** | Hastalıklı dokuya dalışta hız |
+| **Kuyruk** | İzde geri sarma hızı |
+| **Kompozit gövde** | Yedek gemi (+can) ve daha hızlı toparlanma |
+| **Işın topu** | Otomatik ateş: atış hızı ve menzil |
+| **Kalkan** | Emilen darbe sayısı, dolum süresi, doğuşta ek dokunulmazlık |
+
+Her parça 4 kademe. Fiyatlar kademeyle artar; tam bir kampanya gemiyi neredeyse
+tamamen donatmaya yeter, gerisi mutasyon dalgalarından gelir. Altın, parçalar ve
+kampanya ilerlemesi cihazda saklanır (web: `localStorage`, mobil: AsyncStorage).
 
 **Kontrol:** ekrana parmağını koy — dokunduğun nokta joystick merkezi olur, 8 yöne
 hareket edebilirsin; parmağını kaldırınca gemi durur. Hastalıklı dokuya dalmak için
@@ -93,7 +124,7 @@ Hızlı yol olarak `npm run build:web` sonrası `dist/` klasörünü
 ## Geliştirme
 
 ```bash
-npm test         # motor testleri (26 test)
+npm test         # motor ve arayüz testleri (65 test)
 npm run typecheck
 npm run lint
 npm run build:web  # dist/ üretir
@@ -104,8 +135,10 @@ npm run preview    # motoru başsız oynatıp docs/preview.png üretir
 
 ```
 src/engine/        Platformdan bağımsız oyun motoru (saf TypeScript, React içermez)
-  types.ts         Hücre durumları, düşman ve olay tipleri
+  types.ts         Hücre durumları, düşman, mermi ve olay tipleri
   config.ts        Alan boyutu, hızlar, zorluk eğrisi
+  campaign.ts      Görev planı: hedef yüzde, kadro, altın primi (sonsuz dalgalar dahil)
+  upgrades.ts      Parçalar, kademe fiyatları ve oynanış etkileri (ShipStats)
   field.ts         Grid, bölge etiketleme (flood fill), ele geçirme kuralları
   game.ts          Oyuncu adımları, düşman davranışı, çarpışma, seviye akışı
   input.ts         8 yöne yuvarlama + ölü bölge (mobil ve web ortak kullanır)
@@ -113,10 +146,15 @@ src/engine/        Platformdan bağımsız oyun motoru (saf TypeScript, React i�
 src/ui/            React Native / Skia katmanı
   GameCanvas.tsx   Grid'i RGBA tamponundan Skia görüntüsüne çevirip çizer
   Joystick.tsx     PanResponder tabanlı serbest yerleşimli joystick
-  Hud.tsx          Seviye, puan, yüzde çubuğu, canlar
+  Hud.tsx          Görev, puan, yüzde çubuğu, canlar, kalkan ve altın
+  Hangar.tsx       Altınla parça alma ekranı (mobil)
+  ShipPreview.tsx  Hangardaki gemi önizlemesi (Skia)
+  SkiaShapes.tsx   Şekil listesini Skia düğümlerine çeviren ortak katman
+  parts.ts         Parça adları ve etki metinleri
+  profile.ts       Kalıcı profil: altın, parçalar, açılan bölüm, rekor
   contour.ts       Sınır çokgeni çıkarma ve merdiven köşelerini pahlama
   creatures.ts     Gemi ve düşman şekilleri (renderdan bağımsız şekil listesi)
-  story.ts         Açılış hikâyesi, görev (doku) adları, düşman tema adları
+  story.ts         Ana hikâye, bölüm brifingleri, düşman tema adları
   gridImage.ts     Alan -> piksel dönüşümü (zemin ve ham grid görünümü)
   palette.ts       Tek renk kaynağı
 web/               Web sürümü: Canvas2D render + DOM arayüzü
@@ -142,6 +180,14 @@ App.tsx            Mobil ekran akışı (menü / oyun / duraklatma / seviye sonu
 - **Ele geçirme.** İz kapandığında boş hücreler 4 komşuluk üzerinden bölgelere ayrılır;
   patronun bulunmadığı her bölge doldurulur. 4 komşuluk seçilmesi izin çapraz
   hareketlerde de sızdırmaz bir duvar olmasını sağlar.
+- **Yükseltmeler tek yerden.** Parçaların oynanışa etkisi `shipStats(loadout)`
+  ile türetilir (`src/engine/upgrades.ts`); motor yalnızca bu değerleri okur,
+  arayüz de aynı değerleri metne çevirir (`src/ui/parts.ts`). Fabrika çıkışı gemi
+  yükseltme öncesindeki değerleri birebir korur, bu da testle sabitlenmiştir.
+- **Kampanya verisi ile metin ayrı.** Hedef yüzde, düşman kadrosu ve altın primi
+  `src/engine/campaign.ts` içinde (oynanış); bölüm adları, başlıklar ve brifing
+  metinleri `src/ui/story.ts` içinde (tema). İkisi `missionFor(index)` ile
+  birleşir.
 - **Tema ve oynanış ayrı.** Motor türleri davranışa göre adlandırılır
   (`drifter` / `hunter` / `boss`); mikrop, virüs, patojen adları ve görev
   metinleri yalnızca arayüz katmanındadır (`src/ui/story.ts`). Karakter
