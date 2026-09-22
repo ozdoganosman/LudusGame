@@ -73,14 +73,24 @@ export class Field {
   /**
    * Dolu hücre boş alana (veya ize) komşu mu? Gemi yalnızca bu kenar
    * hücrelerinde yürür; ele geçirilmiş bloğun içine giremez.
+   *
+   * Çapraz komşular da sayılır: iç köşedeki hücre boşluğa yalnızca çaprazdan
+   * değer. Onu kenar saymazsak gemi köşeye varamadan durur ve 90° dönüp duvar
+   * boyunca ilerleyemez; kapatmanın bittiği çerçeve hücresi de kenar sayılmaz
+   * ve gemi beklenmedik bir hücreye çekilir.
    */
   isEdge(x: number, y: number): boolean {
     if (!this.inBounds(x, y) || this.cells[this.idx(x, y)] !== FILLED) return false;
     const { w, h, cells } = this;
-    if (x > 0 && cells[y * w + x - 1] !== FILLED) return true;
-    if (x < w - 1 && cells[y * w + x + 1] !== FILLED) return true;
-    if (y > 0 && cells[(y - 1) * w + x] !== FILLED) return true;
-    if (y < h - 1 && cells[(y + 1) * w + x] !== FILLED) return true;
+    for (let dy = -1; dy <= 1; dy++) {
+      const ny = y + dy;
+      if (ny < 0 || ny >= h) continue;
+      for (let dx = -1; dx <= 1; dx++) {
+        const nx = x + dx;
+        if ((dx === 0 && dy === 0) || nx < 0 || nx >= w) continue;
+        if (cells[ny * w + nx] !== FILLED) return true;
+      }
+    }
     return false;
   }
 

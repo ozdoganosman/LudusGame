@@ -211,6 +211,70 @@ test('kapatma gemiyi içeride bırakırsa kenara çekilir', () => {
   );
 });
 
+test('alanı kapatan gemi çerçevede kalır ve hemen çerçeve boyunca gidebilir', () => {
+  const game = new Game({ width: 20, height: 20, seed: 1 });
+  game.start();
+  game.enemies = [makeEnemy('boss', 4.5, 4.5)];
+
+  // Yukarı 4, sağa 3, aşağı 4: iz alt çerçeveye inip kapanır.
+  stepMany(game, { dx: 0, dy: -1 }, 4);
+  stepMany(game, { dx: 1, dy: 0 }, 3);
+  const events = stepMany(game, { dx: 0, dy: 1 }, 4);
+
+  assert.equal(eventsOfType(events, 'capture').length, 1);
+  assert.equal(game.player.x, 13);
+  assert.equal(game.player.y, 19, 'kapatma sonrası gemi başka hücreye ışınlanmamalı');
+
+  // Dalış tuşu olmadan, 90° dönüp yeni sınırın iki kolu boyunca gidebilmeli:
+  // çerçeve boyunca sağa ve kapatılan bloğun kenarı boyunca yukarı.
+  stepOnce(game, { dx: 1, dy: 0, dive: false });
+  assert.deepEqual([game.player.x, game.player.y], [14, 19], 'sağa çerçeve boyunca');
+  stepOnce(game, { dx: -1, dy: 0, dive: false });
+  stepMany(game, { dx: 0, dy: -1, dive: false }, 2);
+  assert.deepEqual([game.player.x, game.player.y], [13, 17], 'yukarı bloğun kenarı boyunca');
+  assert.equal(game.player.drawing, false);
+
+  // Kapatılan bloğun altındaki çerçeve artık bloğun içi: oraya yürünmez.
+  assert.equal(game.field.isEdge(12, 19), false);
+});
+
+test('iç köşede gemi köşeye varır ve 90° dönüp duvar boyunca ilerler', () => {
+  const game = new Game({ width: 20, height: 20, seed: 1 });
+  game.start();
+  game.enemies = [makeEnemy('boss', 4.5, 4.5)];
+  // L biçimli bölge: alt blok + sağda yükselen duvar.
+  for (let y = 14; y < 19; y++) for (let x = 1; x < 19; x++) game.field.set(x, y, FILLED);
+  for (let y = 5; y < 14; y++) for (let x = 12; x < 19; x++) game.field.set(x, y, FILLED);
+  game.player.x = 8;
+  game.player.y = 14;
+
+  assert.equal(game.field.isEdge(12, 14), true, 'iç köşe hücresi kenar sayılmalı');
+  assert.equal(game.field.isEdge(13, 15), false, 'bloğun içi kenar değil');
+
+  stepMany(game, { dx: 1, dy: 0, dive: false }, 6);
+  assert.deepEqual([game.player.x, game.player.y], [12, 14], 'köşeye kadar gidebilmeli');
+
+  stepMany(game, { dx: 0, dy: -1, dive: false }, 3);
+  assert.deepEqual([game.player.x, game.player.y], [12, 11], 'duvar boyunca yukarı çıkabilmeli');
+  assert.equal(game.player.drawing, false, 'bu yürüyüş dalış değil');
+});
+
+test('köşe hücresinden çapraz dalışla boşluğa sızılamaz', () => {
+  const game = new Game({ width: 20, height: 20, seed: 1 });
+  game.start();
+  game.enemies = [makeEnemy('boss', 4.5, 4.5)];
+  for (let y = 14; y < 19; y++) for (let x = 1; x < 19; x++) game.field.set(x, y, FILLED);
+  for (let y = 5; y < 14; y++) for (let x = 12; x < 19; x++) game.field.set(x, y, FILLED);
+  game.player.x = 12;
+  game.player.y = 14;
+
+  // Sol üst çapraz boş, ama iki yanı da dolu: köşeden geçilemez.
+  stepOnce(game, { dx: -1, dy: -1 });
+
+  assert.deepEqual([game.player.x, game.player.y], [12, 14]);
+  assert.equal(game.player.drawing, false);
+});
+
 test('kendi izine girmek canı götürür', () => {
   const game = setupGame();
   stepMany(game, { dx: 0, dy: -1 }, 5); // yukarı: (8,14)...(8,10)
