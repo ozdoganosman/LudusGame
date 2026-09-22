@@ -1,21 +1,24 @@
 /**
- * Şekil listesini (src/ui/creatures) Skia düğümlerine çeviren ortak katman.
- * Oyun alanı ve hangardaki gemi önizlemesi aynı kodu kullanır.
+ * Şekil listesini (src/ui/shapes) Skia düğümlerine çeviren ortak katman.
+ * Oyun alanı, hangar önizlemesi ve ara sahne aynı kodu kullanır.
  */
-import { Circle, Path, Skia } from '@shopify/react-native-skia';
+import { Group, Path, Skia, TwoPointConicalGradient, vec } from '@shopify/react-native-skia';
 
-import type { Point, Shape } from './creatures';
+import { MIN_STROKE_PX } from './shapes';
+import type { Shape } from './shapes';
 
-/** Şekil listesindeki çokgeni Skia yoluna çevirir. */
-export function polygonPath(points: Point[], cell: number) {
+/** Şekli Skia yoluna çevirir (daire ya da çokgen/çizgi). */
+export function shapePath(shape: Shape, cell: number) {
   const path = Skia.Path.Make();
-  points.forEach((point, index) => {
-    const x = point.x * cell;
-    const y = point.y * cell;
-    if (index === 0) path.moveTo(x, y);
-    else path.lineTo(x, y);
+  if (shape.kind === 'circle') {
+    path.addCircle(shape.x * cell, shape.y * cell, Math.max(0, shape.r * cell));
+    return path;
+  }
+  shape.points.forEach((point, index) => {
+    if (index === 0) path.moveTo(point.x * cell, point.y * cell);
+    else path.lineTo(point.x * cell, point.y * cell);
   });
-  path.close();
+  if (!shape.open) path.close();
   return path;
 }
 
@@ -25,30 +28,42 @@ type Props = {
   cell: number;
 };
 
-/** Daire ve çokgenleri sırayla çizer. */
+/** Şekilleri sırayla çizer: dolgu (degradeli olabilir), sonra kontur. */
 export function ShapeNodes({ shapes, cell }: Props) {
   return (
     <>
-      {shapes.map((shape, index) =>
-        shape.kind === 'circle' ? (
-          <Circle
-            key={index}
-            cx={shape.x * cell}
-            cy={shape.y * cell}
-            r={shape.r * cell}
-            color={shape.color}
-            opacity={shape.alpha ?? 1}
-          />
-        ) : (
-          <Path
-            key={index}
-            path={polygonPath(shape.points, cell)}
-            color={shape.color}
-            opacity={shape.alpha ?? 1}
-            style="fill"
-          />
-        )
-      )}
+      {shapes.map((shape, index) => {
+        const path = shapePath(shape, cell);
+        const open = shape.kind === 'poly' && shape.open === true;
+        const gradient = shape.gradient;
+        return (
+          <Group key={index} opacity={shape.alpha ?? 1}>
+            {!open ? (
+              <Path path={path} color={shape.color} style="fill">
+                {gradient ? (
+                  <TwoPointConicalGradient
+                    start={vec((gradient.fx ?? gradient.cx) * cell, (gradient.fy ?? gradient.cy) * cell)}
+                    startR={0}
+                    end={vec(gradient.cx * cell, gradient.cy * cell)}
+                    endR={Math.max(0.01, gradient.r * cell)}
+                    colors={[gradient.from, gradient.to]}
+                  />
+                ) : null}
+              </Path>
+            ) : null}
+            {shape.stroke || open ? (
+              <Path
+                path={path}
+                style="stroke"
+                color={shape.stroke ?? shape.color}
+                strokeWidth={Math.max(MIN_STROKE_PX, (shape.strokeWidth ?? 0.2) * cell)}
+                strokeJoin="round"
+                strokeCap="round"
+              />
+            ) : null}
+          </Group>
+        );
+      })}
     </>
   );
 }

@@ -31,10 +31,25 @@ Aynı oyun motoru iki yerde çalışır: **mobil** (Expo / React Native + Skia) 
 | Geri sarma | İzde geldiğin yönde geri gidersen geçtiğin hücreler silinir; başa dönersen iz iptal olur |
 | Ölüm | Düşman izine veya gemiye değerse, ya da kendi izinin **başka** bir yerine girersen |
 | Patojen (patron) | Bulunduğu bölge temizlenemez, her yerde tehlikelidir |
-| Mikroplar | Temizlenen bölgede kalırlarsa yok olur ve puan verirler |
+| Hapsetme | Kapattığın alanda kalan mikrop ve virüs olduğu yerde patlar, özel prim ve altın verir |
 | Virüsler | Avcı türler; gemiyi takip eder, sıçrar ya da atılır |
 | Işın topu | Satın alındıysa baktığın yöne otomatik ateş eder; mikrop ve virüsü düşürür, patronu savurur |
 | Kalkan | Satın alındıysa mikrop/virüs darbesini emer (iz gider, can gitmez) ve zamanla dolar |
+
+### Hapsetme primi
+
+Kapattığın alanda kalan düşman yerinde şişip söner, beyaz bir flaş ve şok
+halkasıyla türünün renginde damlacıklara dağılır; üstünde prim yazısı zıplayarak
+yükselir. Prim alan puanından ayrıdır ve bölümle büyür:
+
+| Hapsolan | Puan | Altın |
+| --- | --- | --- |
+| Mikrop | 500 × bölüm × zincir | 8 × zincir |
+| Virüs (avcı) | 900 × bölüm × zincir | 8 × zincir |
+
+Tek kapatmada birden fazla düşman hapsedersen **zincir** büyür (×2, ×3…) ve
+patlamalar sırayla gelir. Bölümü bitiren son kapatmanın patlamaları da görünsün
+diye sonuç paneli bir an gecikmeli açılır.
 
 ### Ana hikâye ve görevler
 
@@ -51,7 +66,8 @@ kırmızı, lenf düğümünde berrak turkuaz). Desenler yordamsal: varlık dosy
 her doku kendi görüntüsünü hesaplıyor.
 
 **Her bölümün kendi türleri var** — hem görünüş hem hareket olarak. 42 tür, 16
-ayrı siluet (salkım, çubuk + kamçı, spiral, eklemli solucan, dikenli yıldız,
+ayrı siluet; hepsi koyu konturlu, hacim degradeli, gölgeli ve gözlü (kaşlı,
+göz bebeği gemiyi izleyen) çizgi film karakterleri (salkım, çubuk + kamçı, spiral, eklemli solucan, dikenli yıldız,
 delikli halka, mızrak, dönen çarpı, çanlı denizanası, kristal, altıgen başlı faj,
 amip; patronlar dişli ağız, dev göz, üç başlı hidra, dikenli taç) ve **11 hareket
 davranışı**:
@@ -83,6 +99,11 @@ beş faj ve sekiz çizen bir patron var.
 
 Görevi tamamlarsan puan ve can sıradaki bölüme taşınır; filo tükenirse kazandığın
 altın kasada kalır, gemiyi güçlendirip aynı bölüme dönersin.
+
+**Bölüm geçişlerinde kısa bir ara sahne** (~3 sn, dokununca/Enter/boşlukla
+geçilir): tıbbi tarama ekranında bir insan silueti, temizlenen organlar yeşil
+yanar, gemi bir önceki organdan sıradakine damar boyunca yol alır, hedef organ
+nabız gibi atar ve adı daktiloyla yazılır. İlk görevde gemi enjektörden çıkar.
 
 ### Hangar (yükseltmeler)
 
@@ -187,10 +208,15 @@ src/ui/            React Native / Skia katmanı
   Hangar.tsx       Altınla parça alma ekranı (mobil)
   ShipPreview.tsx  Hangardaki gemi önizlemesi (Skia)
   SkiaShapes.tsx   Şekil listesini Skia düğümlerine çeviren ortak katman
+  CutsceneView.tsx Bölüm geçişi ara sahnesi (mobil)
   parts.ts         Parça adları ve etki metinleri
   profile.ts       Kalıcı profil: altın, parçalar, açılan bölüm, rekor
   contour.ts       Sınır çokgeni çıkarma ve merdiven köşelerini pahlama
-  creatures.ts     Gemi, parçalar ve 16 canavar siluetinin şekilleri
+  shapes.ts        Ortak şekil tipi (daire/çokgen/çizgi, degrade, kontur)
+  creatures.ts     Gemi, parçalar ve ışın topu mermisinin şekilleri
+  monsters.ts      16 canavar ailesinin çizgi film çizimleri (kontur, degrade, göz)
+  effects.ts       Hapsolan/vurulan düşmanın patlaması ve prim yazıları
+  cutscene.ts      Ara sahnenin kareleri (vücut haritası, rota, yazılar)
   tissues.ts       Bölüm başına doku renkleri ve arka plan deseni
   bestiary.ts      Türlerin silueti, rengi ve tema adı
   story.ts         Ana hikâye, bölüm brifingleri, düşman tema adları
@@ -200,11 +226,12 @@ web/               Web sürümü: Canvas2D render + DOM arayüzü
   body.html        Arayüz iskeleti (HUD, alan, joystick, panel)
   styles.css       Görünüm; arayüz renklerini palette'ten CSS değişkeni olarak alır
   main.ts          Çizim, girdi (dokunmatik + klavye), HUD, ekran akışı
+  draw.ts          Şekil listesini Canvas2D'ye çizer (oyun, hangar, ara sahne)
 tools/
   build-web.mjs    esbuild paketleme; üç çıktıyı tek kaynaktan oluşturur
                    (--serve ile yerel sunucu ve izleme)
   preview.ts       Başsız oynatma + PNG kare üretimi
-App.tsx            Mobil ekran akışı (menü / oyun / duraklatma / seviye sonu / oyun sonu)
+App.tsx            Mobil ekran akışı (menü / ara sahne / brifing / oyun / duraklatma / sonuçlar)
 ```
 
 ### Tasarım notları
@@ -237,8 +264,12 @@ App.tsx            Mobil ekran akışı (menü / oyun / duraklatma / seviye sonu
 - **Tema ve oynanış ayrı.** Motor türleri davranışa göre adlandırılır
   (`drifter` / `hunter` / `boss`); mikrop, virüs, patojen adları ve görev
   metinleri yalnızca arayüz katmanındadır (`src/ui/story.ts`). Karakter
-  çizimleri de renderdan bağımsız bir şekil listesidir (`src/ui/creatures.ts`),
-  böylece web ve mobil aynı gemiyi ve aynı düşmanları çizer.
+  çizimleri de renderdan bağımsız bir şekil listesidir (`src/ui/shapes.ts`:
+  daire, çokgen ya da açık çizgi; dolgu, radyal degrade ve kontur). Gemi,
+  canavarlar, patlama efektleri ve ara sahne bu listeyi üretir; web
+  (`web/draw.ts`, Canvas2D) ve mobil (`SkiaShapes.tsx`, Skia) aynı listeyi çizer.
+- **Efektler deterministik.** Patlama parçacıkları rastgele sayı değil efekt
+  kimliğinden türetilir; efekt zamanı oyun döngüsünden gelir, duraklatınca durur.
 - **Doku görüntüleri yordamsal.** Her bölümün deseni (damar, sümük ipliği, hava
   kesesi, petek, kas lifi, sinir ağı, çekirdek halkası) konuma bağlı deterministik
   gürültüden hesaplanır; hücre başına 3 piksel üretilip yumuşatılarak ölçeklenir.

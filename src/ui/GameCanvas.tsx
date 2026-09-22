@@ -12,6 +12,7 @@ import {
 } from '@shopify/react-native-skia';
 import type { SkImage, SkPath } from '@shopify/react-native-skia';
 import { memo, useMemo, useRef } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 
 import type { Field } from '../engine/field';
 import type { Game } from '../engine/game';
@@ -19,6 +20,8 @@ import type { Loadout } from '../engine/upgrades';
 import { territoryOutline } from './contour';
 import { enemyShapes, shipAngle, shipShapes, shotShapes } from './creatures';
 import type { Shape } from './creatures';
+import { LABEL_SIZE } from './effects';
+import type { Effects } from './effects';
 import {
   textureBufferSize,
   textureHeight,
@@ -39,6 +42,8 @@ type Props = {
   frame: number;
   /** Satın alınmış parçalar; gemide görünür. */
   loadout: Loadout;
+  /** Yok olan düşmanların patlamaları ve prim yazıları. */
+  effects: Effects;
 };
 
 /** Doku tamponunu Skia görüntüsüne çevirir. */
@@ -57,7 +62,7 @@ function toImage(field: Field, pixels: Uint8Array): SkImage | null {
   );
 }
 
-export const GameCanvas = memo(function GameCanvas({ game, cell, frame, loadout }: Props) {
+export const GameCanvas = memo(function GameCanvas({ game, cell, frame, loadout, effects }: Props) {
   const { field } = game;
   const width = field.w * cell;
   const height = field.h * cell;
@@ -137,6 +142,8 @@ export const GameCanvas = memo(function GameCanvas({ game, cell, frame, loadout 
   const blink = game.invulnerable > 0 && Math.floor(frame / 5) % 2 === 0;
   const crew: Shape[] = game.enemies.flatMap((enemy) => enemyShapes(enemy, look));
   for (const shot of game.shots) crew.push(...shotShapes(shot));
+  crew.push(...effects.shapes());
+  const labels = effects.labels();
   if (game.phase === 'dying') {
     crew.push({ kind: 'circle', x: look.x, y: look.y, r: 4, color: palette.danger, alpha: 0.55 });
   } else {
@@ -157,58 +164,99 @@ export const GameCanvas = memo(function GameCanvas({ game, cell, frame, loadout 
   const sampling = { filter: FilterMode.Linear, mipmap: MipmapMode.None };
 
   return (
-    <Canvas style={{ width, height }}>
-      {tissue.current.sick ? (
-        <SkiaImage
-          image={tissue.current.sick}
-          x={0}
-          y={0}
-          width={width}
-          height={height}
-          fit="fill"
-          sampling={sampling}
-        />
-      ) : null}
+    <View style={{ width, height }}>
+      <Canvas style={{ width, height }}>
+        {tissue.current.sick ? (
+          <SkiaImage
+            image={tissue.current.sick}
+            x={0}
+            y={0}
+            width={width}
+            height={height}
+            fit="fill"
+            sampling={sampling}
+          />
+        ) : null}
 
-      {territory ? (
-        <>
-          {tissue.current.healthy ? (
-            <Group clip={territory}>
-              <SkiaImage
-                image={tissue.current.healthy}
-                x={0}
-                y={0}
-                width={width}
-                height={height}
-                fit="fill"
-                sampling={sampling}
-              />
-            </Group>
-          ) : (
-            <Path path={territory} color={theme.healthy} style="fill" />
-          )}
+        {territory ? (
+          <>
+            {tissue.current.healthy ? (
+              <Group clip={territory}>
+                <SkiaImage
+                  image={tissue.current.healthy}
+                  x={0}
+                  y={0}
+                  width={width}
+                  height={height}
+                  fit="fill"
+                  sampling={sampling}
+                />
+              </Group>
+            ) : (
+              <Path path={territory} color={theme.healthy} style="fill" />
+            )}
+            <Path
+              path={territory}
+              color={theme.healthyEdge}
+              style="stroke"
+              strokeWidth={Math.max(1, cell * 0.5)}
+              strokeJoin="round"
+            />
+          </>
+        ) : null}
+
+        {trail ? (
           <Path
-            path={territory}
-            color={theme.healthyEdge}
+            path={trail}
+            color={palette.trail}
             style="stroke"
-            strokeWidth={Math.max(1, cell * 0.5)}
+            strokeWidth={cell}
+            strokeCap="round"
             strokeJoin="round"
           />
-        </>
-      ) : null}
+        ) : null}
 
-      {trail ? (
-        <Path
-          path={trail}
-          color={palette.trail}
-          style="stroke"
-          strokeWidth={cell}
-          strokeCap="round"
-          strokeJoin="round"
-        />
-      ) : null}
+        <ShapeNodes shapes={crew} cell={cell} />
+      </Canvas>
 
-      <ShapeNodes shapes={crew} cell={cell} />
-    </Canvas>
+      {/* Prim yazıları: Skia'da yazı tipi yüklemek yerine RN metni. */}
+      {labels.map((label, index) => {
+        const size = cell * (label.big ? LABEL_SIZE.big : LABEL_SIZE.small);
+        return (
+          <View
+            key={index}
+            pointerEvents="none"
+            style={[
+              styles.label,
+              {
+                left: label.x * cell - 80,
+                top: label.y * cell - size,
+                opacity: label.alpha,
+                transform: [{ scale: label.scale }],
+              },
+            ]}
+          >
+            <Text style={[styles.labelText, { fontSize: size, color: label.color }]}>{label.text}</Text>
+            {label.sub ? (
+              <Text style={[styles.labelText, { fontSize: size * 0.55, color: '#ffffff' }]}>{label.sub}</Text>
+            ) : null}
+          </View>
+        );
+      })}
+    </View>
   );
+});
+
+const styles = StyleSheet.create({
+  label: {
+    position: 'absolute',
+    width: 160,
+    alignItems: 'center',
+  },
+  labelText: {
+    fontWeight: '800',
+    textShadowColor: '#160a20',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 4,
+  },
 });

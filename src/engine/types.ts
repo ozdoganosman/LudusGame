@@ -80,8 +80,13 @@ export type GameEvent =
     }
   /** Kalkan bir darbeyi emdi: can gitmedi. */
   | { type: 'shield-hit'; chargesLeft: number }
-  /** Silahla düşman düşürüldü. */
-  | { type: 'enemy-down'; kind: EnemyKind; species: SpeciesId; points: number; gold: number }
+  /** Silahla düşman düşürüldü; enemy son hâlidir (efekt onun yerinde çizilir). */
+  | { type: 'enemy-down'; kind: EnemyKind; species: SpeciesId; points: number; gold: number; enemy: Enemy }
+  /**
+   * Kapatılan alanda kalan düşman yok oldu. chain: aynı kapatmada kaçıncı
+   * düşman olduğu (prim onunla çarpılır).
+   */
+  | { type: 'enemy-trapped'; enemy: Enemy; points: number; gold: number; chain: number }
   /** Bölünen bir tür çoğaldı. */
   | { type: 'enemy-split'; species: SpeciesId }
   | { type: 'death'; cause: DeathCause; livesLeft: number }

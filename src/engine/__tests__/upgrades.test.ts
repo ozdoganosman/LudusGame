@@ -199,8 +199,7 @@ test('kalkan darbeyi emer, ikinci vuruş can götürür', () => {
   assert.equal(game.lives, START_LIVES - 1);
 });
 
-test('kapatma altını hücre ve tuzak sayısıyla artar', () => {
-  assert.ok(captureGold(500, 0) > captureGold(100, 0));
-  assert.ok(captureGold(100, 2) > captureGold(100, 0));
-  assert.ok(captureGold(1, 0) >= 1);
+test('kapatma altını hücre sayısıyla artar', () => {
+  assert.ok(captureGold(500) > captureGold(100));
+  assert.ok(captureGold(1) >= 1);
 });

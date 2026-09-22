@@ -15,7 +15,15 @@ export {
   shipStats,
 } from './upgrades';
 export type { Loadout, PartId, ShipStats } from './upgrades';
-export { CAMPAIGN_LENGTH, KILL_GOLD, captureGold, missionPlan } from './campaign';
+export {
+  CAMPAIGN_LENGTH,
+  KILL_GOLD,
+  TRAP_GOLD,
+  TRAP_POINTS,
+  captureGold,
+  missionPlan,
+  trapReward,
+} from './campaign';
 export type { MissionPlan } from './campaign';
 export type { Rng } from './rng';
 export * from './types';

@@ -1,4 +1,4 @@
-import { KILL_GOLD, captureGold, missionPlan } from './campaign';
+import { KILL_GOLD, captureGold, missionPlan, trapReward } from './campaign';
 import type { MissionPlan } from './campaign';
 import {
   FIELD_H,
@@ -390,13 +390,23 @@ export class Game {
 
   private finishTrail(): void {
     const result = closeTrail(this.field, this.trail, this.enemies);
-    const points = result.cells * (8 + 2 * this.level) + result.trapped.length * 400 * this.level;
-    const gold = captureGold(result.cells, result.trapped.length);
+    const points = result.cells * (8 + 2 * this.level);
+    const gold = captureGold(result.cells);
     this.score += points;
     this.gold += gold;
 
+    // Kapanan alanda kalan her düşman yok olur ve zincirli özel prim getirir.
     if (result.trapped.length > 0) {
       const killed = new Set(result.trapped);
+      let chain = 0;
+      for (const enemy of this.enemies) {
+        if (!killed.has(enemy.id)) continue;
+        chain++;
+        const reward = trapReward(enemy.kind, this.level, chain);
+        this.score += reward.points;
+        this.gold += reward.gold;
+        this.events.push({ type: 'enemy-trapped', enemy: { ...enemy }, chain, ...reward });
+      }
       this.enemies = this.enemies.filter((enemy) => !killed.has(enemy.id));
     }
 
@@ -487,6 +497,7 @@ export class Game {
         species: enemy.species,
         points,
         gold: KILL_GOLD,
+        enemy: { ...enemy },
       });
       return true;
     }

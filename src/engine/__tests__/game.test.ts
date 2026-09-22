@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
+import { trapReward } from '../campaign';
 import { DEATH_FREEZE, MAX_DT, START_LIVES } from '../config';
 import { Game } from '../game';
 import { EMPTY, FILLED, TRAIL } from '../types';
@@ -473,18 +474,46 @@ test('sonraki seviye alanı sıfırlar ve zorluğu artırır', () => {
   assert.ok(game.enemies.length > firstLevelEnemies);
 });
 
-test('kapatılan bölgede kalan düşman yok edilir ve puan verir', () => {
+test('kapatılan bölgede kalan düşman yok edilir ve özel prim verir', () => {
   const game = setupGame();
   game.enemies.push(makeEnemy('drifter', 3.5, 7.5, 50));
   const scoreBefore = game.score;
+  const goldBefore = game.gold;
 
   const events = stepMany(game, { dx: 0, dy: -1 }, 15);
   const captures = eventsOfType(events, 'capture');
+  const trapped = eventsOfType(events, 'enemy-trapped');
 
   assert.equal(captures.length, 1);
   assert.equal(captures[0].trapped, 1);
-  assert.ok(game.score - scoreBefore > captures[0].cells * 8);
+  assert.equal(trapped.length, 1);
+  assert.equal(trapped[0].enemy.id, 50);
+  assert.equal(trapped[0].chain, 1);
+  assert.deepEqual([trapped[0].enemy.x, trapped[0].enemy.y], [3.5, 7.5], 'efekt düşmanın yerinde çizilsin');
+  assert.equal(trapped[0].points, trapReward('drifter', 1, 1).points);
+  assert.equal(game.score - scoreBefore, captures[0].points + trapped[0].points, 'alan + özel prim');
+  assert.equal(game.gold - goldBefore, captures[0].gold + trapped[0].gold);
   assert.ok(!game.enemies.some((enemy) => enemy.id === 50));
+});
+
+test('aynı kapatmada hapsolan düşmanların primi zincirlenir', () => {
+  const game = setupGame();
+  game.enemies.push(
+    makeEnemy('drifter', 3.5, 5.5, 50),
+    makeEnemy('hunter', 4.5, 9.5, 51),
+    makeEnemy('drifter', 2.5, 12.5, 52)
+  );
+
+  const events = stepMany(game, { dx: 0, dy: -1 }, 15);
+  const trapped = eventsOfType(events, 'enemy-trapped');
+
+  assert.equal(trapped.length, 3);
+  assert.deepEqual(trapped.map((event) => event.chain), [1, 2, 3]);
+  const hunter = trapped.find((event) => event.enemy.kind === 'hunter');
+  assert.ok(hunter);
+  assert.equal(hunter.points, trapReward('hunter', 1, hunter.chain).points, 'avcı daha değerli');
+  assert.ok(trapped[2].points > trapped[0].points, 'zincirin sonu daha çok getirir');
+  assert.equal(game.enemies.filter((enemy) => enemy.id >= 50).length, 0);
 });
 
 test('duraklatma girdisi yoksa oyuncu yerinde kalır', () => {

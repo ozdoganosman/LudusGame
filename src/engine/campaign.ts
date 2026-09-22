@@ -7,6 +7,7 @@
 import { MAX_ENEMIES, difficulty } from './config';
 import type { Difficulty } from './config';
 import type { SpeciesId } from './species';
+import type { EnemyKind } from './types';
 
 /**
  * Bölüm başına temizlenmesi gereken alan. İlk bölüm bile rahat değil; kampanya
@@ -122,12 +123,30 @@ function capRoster(roster: RosterEntry[]): RosterEntry[] {
 }
 
 /**
- * Kapatılan alanın altın karşılığı; tuzağa düşen düşman başına ek prim.
- * Ölçek, tam bir kampanyanın gemiyi neredeyse tamamen donatmaya yetmesi için
- * seçildi (görev başına ~300 altın + görev primi).
+ * Kapatılan alanın altın karşılığı. Ölçek, tam bir kampanyanın gemiyi
+ * neredeyse tamamen donatmaya yetmesi için seçildi (görev başına ~300 altın +
+ * görev primi). Hapsolan düşmanların primi ayrı: trapReward.
  */
-export function captureGold(cells: number, trapped: number): number {
-  return Math.max(1, Math.round(cells / 12)) + trapped * 8;
+export function captureGold(cells: number): number {
+  return Math.max(1, Math.round(cells / 12));
+}
+
+/** Hapsolan düşmanın temel primi (bölüm numarasıyla çarpılır). Patron hapsolmaz. */
+export const TRAP_POINTS: Record<EnemyKind, number> = { drifter: 500, hunter: 900, boss: 0 };
+
+/** Hapsolan düşman başına temel altın. */
+export const TRAP_GOLD = 8;
+
+/**
+ * Tek kapatmada hapsolan düşmanların primi zincirlenir: ikinci düşman iki
+ * katı, üçüncüsü üç katı getirir. Birden çok düşmanı aynı hamlede kapatmak
+ * oyunun en kârlı hareketi olsun.
+ */
+export function trapReward(kind: EnemyKind, level: number, chain: number): { points: number; gold: number } {
+  return {
+    points: TRAP_POINTS[kind] * Math.max(1, level) * chain,
+    gold: TRAP_GOLD * chain,
+  };
 }
 
 /** Silahla düşürülen düşmanın altın karşılığı. */

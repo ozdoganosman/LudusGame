@@ -10,7 +10,9 @@ import { Game } from './src/engine/game';
 import { NEUTRAL } from './src/engine/input';
 import type { PartId } from './src/engine/upgrades';
 import type { Input } from './src/engine/types';
+import { CutsceneView } from './src/ui/CutsceneView';
 import { DiveButton } from './src/ui/DiveButton';
+import { Effects } from './src/ui/effects';
 import { GameCanvas } from './src/ui/GameCanvas';
 import { Hangar } from './src/ui/Hangar';
 import { Hud } from './src/ui/Hud';
@@ -33,10 +35,20 @@ import { loadProfile, saveProfile } from './src/ui/storage';
 import { bestiaryLine } from './src/ui/bestiary';
 import { useGameLoop } from './src/ui/useGameLoop';
 
-type Mode = 'menu' | 'brief' | 'playing' | 'paused' | 'levelClear' | 'gameOver' | 'shop';
+type Mode =
+  | 'menu'
+  | 'voyage'
+  | 'brief'
+  | 'playing'
+  | 'paused'
+  | 'levelClear'
+  | 'gameOver'
+  | 'shop';
 
 const STICK_HEIGHT = 160;
 const HUD_HEIGHT = 108;
+/** Görev bitince son patlamalar görünsün diye panel bu kadar gecikir (saniye). */
+const CLEAR_DELAY = 0.9;
 
 /** Dokunsal geri bildirim isteğe bağlıdır; desteklenmeyen cihazda sessizce geçilir. */
 function buzz(run: () => Promise<void>) {
@@ -72,6 +84,12 @@ function GameRoot() {
   const continuingRun = useRef(false);
   /** Hangardan çıkınca dönülecek ekran. */
   const shopReturn = useRef<Mode>('menu');
+  /** Yok olan düşmanların patlamaları ve prim yazıları. */
+  const effectsRef = useRef<Effects | null>(null);
+  if (!effectsRef.current) effectsRef.current = new Effects();
+  const effects = effectsRef.current;
+  /** Görev sonu panelinin açılmasına kalan süre; negatifse beklenmiyor. */
+  const clearTimer = useRef(-1);
 
   const [mode, setMode] = useState<Mode>('menu');
   const [frame, setFrame] = useState(0);
@@ -88,6 +106,8 @@ function GameRoot() {
     shieldCharges: 0,
   });
   const [summary, setSummary] = useState({ level: 1, percent: 0, score: 0, bonus: 0, gold: 0 });
+  /** Bölüm geçişi ara sahnesi: temizlenen bölümden (null: enjeksiyon) hedefe. */
+  const [voyage, setVoyage] = useState({ from: null as number | null, to: 1, continueRun: false });
 
   // Kayıtlı profil: altın, parçalar ve kampanyada kalınan yer.
   useEffect(() => {
@@ -127,6 +147,11 @@ function GameRoot() {
 
   const step = useCallback(
     (dt: number) => {
+      effects.update(dt);
+      if (clearTimer.current > 0) {
+        clearTimer.current -= dt;
+        if (clearTimer.current <= 0) setMode('levelClear');
+      }
       const events = game.update(dt, {
         dx: inputRef.current.dx,
         dy: inputRef.current.dy,
@@ -143,6 +168,12 @@ function GameRoot() {
                   : Haptics.ImpactFeedbackStyle.Light
               )
             );
+            break;
+          case 'enemy-trapped':
+            effects.trapped(event.enemy, event.points, event.chain);
+            break;
+          case 'enemy-down':
+            effects.shotDown(event.enemy, event.points);
             break;
           case 'shield-hit':
             buzz(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy));
@@ -169,7 +200,7 @@ function GameRoot() {
               bonus: event.bonus,
               gold: earned,
             });
-            setMode('levelClear');
+            clearTimer.current = CLEAR_DELAY;
             break;
           }
           case 'game-over': {
@@ -204,7 +235,7 @@ function GameRoot() {
         syncHud(profile.gold);
       }
     },
-    [game, profile.gold, syncHud]
+    [effects, game, profile.gold, syncHud]
   );
 
   useGameLoop(step, mode === 'playing');
@@ -230,6 +261,19 @@ function GameRoot() {
     [commitProfile, profile]
   );
 
+  /** Önce ara sahne, ardından brifing. */
+  const openVoyage = useCallback((index: number, continueRun: boolean, from: number | null) => {
+    inputRef.current = NEUTRAL;
+    divingRef.current = false;
+    setVoyage({ from, to: index, continueRun });
+    setMode('voyage');
+  }, []);
+
+  const endVoyage = useCallback(
+    () => openBrief(voyage.to, voyage.continueRun),
+    [openBrief, voyage.continueRun, voyage.to]
+  );
+
   const launch = useCallback(() => {
     inputRef.current = NEUTRAL;
     divingRef.current = false;
@@ -237,9 +281,11 @@ function GameRoot() {
     if (continuingRun.current && mission === game.level + 1) game.nextLevel();
     else game.start(mission);
     continuingRun.current = false;
+    effects.clear();
+    clearTimer.current = -1;
     syncHud(profile.gold);
     setMode('playing');
-  }, [game, mission, profile.gold, profile.loadout, syncHud]);
+  }, [effects, game, mission, profile.gold, profile.loadout, syncHud]);
 
   const openShop = useCallback(() => {
     setMode((current) => {
@@ -299,7 +345,13 @@ function GameRoot() {
       />
 
       <View style={styles.field}>
-        <GameCanvas game={game} cell={cell} frame={frame} loadout={profile.loadout} />
+        <GameCanvas
+          game={game}
+          cell={cell}
+          frame={frame}
+          loadout={profile.loadout}
+          effects={effects}
+        />
       </View>
 
       <View style={styles.controls}>
@@ -322,12 +374,28 @@ function GameRoot() {
           hint={MISSION_BRIEF}
           primary={{
             label: fresh ? 'GÖREVE BAŞLA' : 'GÖREVE DEVAM',
-            onPress: () => openBrief(profile.unlocked, false),
+            onPress: () =>
+              openVoyage(
+                profile.unlocked,
+                false,
+                profile.unlocked > 1 ? profile.unlocked - 1 : null
+              ),
           }}
           secondary={{ label: 'HANGAR', onPress: openShop }}
           tertiary={
-            fresh ? undefined : { label: '1. BÖLÜMDEN OYNA', onPress: () => openBrief(1, false) }
+            fresh
+              ? undefined
+              : { label: '1. BÖLÜMDEN OYNA', onPress: () => openVoyage(1, false, null) }
           }
+        />
+      ) : null}
+
+      {mode === 'voyage' ? (
+        <CutsceneView
+          key={`${voyage.from}-${voyage.to}`}
+          from={voyage.from}
+          to={voyage.to}
+          onDone={endVoyage}
         />
       ) : null}
 
@@ -382,7 +450,7 @@ function GameRoot() {
           hint="Altınla hangarda kanat, motor, kuyruk, kompozit gövde, ışın topu ve kalkan alabilirsin."
           primary={{
             label: 'SONRAKİ GÖREV',
-            onPress: () => openBrief(summary.level + 1, true),
+            onPress: () => openVoyage(summary.level + 1, true, summary.level),
           }}
           secondary={{ label: 'HANGAR', onPress: openShop }}
           tertiary={{ label: 'ANA EKRAN', onPress: goToMenu }}

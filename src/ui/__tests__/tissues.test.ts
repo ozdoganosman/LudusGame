@@ -112,16 +112,28 @@ test('her siluet çizilebilir şekiller üretir', () => {
         assert.ok(Number.isFinite(shape.x) && Number.isFinite(shape.y));
         assert.ok(shape.r > 0, `${id}: yarıçap sıfır`);
       } else {
-        assert.ok(shape.points.length >= 3, `${id}: çokgen eksik`);
+        // Kapalı çokgen en az 3, açık çizgi (kaş, kamçı) en az 2 nokta.
+        assert.ok(shape.points.length >= (shape.open ? 2 : 3), `${id}: çokgen eksik`);
         for (const point of shape.points) {
           assert.ok(Number.isFinite(point.x) && Number.isFinite(point.y));
         }
       }
       assert.match(shape.color, HEX);
+      if (shape.stroke) assert.match(shape.stroke, HEX);
+      if (shape.gradient) {
+        assert.match(shape.gradient.from, HEX);
+        assert.match(shape.gradient.to, HEX);
+        assert.ok(shape.gradient.r > 0);
+      }
     }
+    // Her düşman konturlu çizilir: dokuya karışmasın.
+    assert.ok(
+      shapes.some((shape) => shape.stroke !== undefined),
+      `${id}: konturu yok`
+    );
   }
 
-  assert.ok(drawn.size >= 14, `siluet çeşidi az: ${drawn.size}`);
+  assert.equal(drawn.size, 16, `siluet çeşidi: ${drawn.size}`);
 });
 
 test('doku görüntüleri deterministik, opak ve bölüme göre farklı', () => {

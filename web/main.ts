@@ -14,7 +14,6 @@ import type { Input } from '../src/engine/types';
 import { territoryOutline } from '../src/ui/contour';
 import type { Point } from '../src/ui/contour';
 import { enemyShapes, shipAngle, shipShapes, shotShapes } from '../src/ui/creatures';
-import type { Shape } from '../src/ui/creatures';
 import { bestiaryLine } from '../src/ui/bestiary';
 import { tissueTheme } from '../src/ui/tissues';
 import type { TissueTheme } from '../src/ui/tissues';
@@ -40,6 +39,11 @@ import {
   missionLabel,
   missionProgress,
 } from '../src/ui/story';
+import { CUTSCENE_LENGTH, SCENE_H, SCENE_W, cutsceneFrame } from '../src/ui/cutscene';
+import type { SceneText } from '../src/ui/cutscene';
+import { Effects, LABEL_SIZE } from '../src/ui/effects';
+import type { EffectLabel } from '../src/ui/effects';
+import { drawShapes } from './draw';
 import {
   TEXTURE_SCALE,
   writeHealthyPixels,
@@ -47,7 +51,15 @@ import {
 } from '../src/ui/gridImage';
 import { palette } from '../src/ui/palette';
 
-type Mode = 'menu' | 'brief' | 'playing' | 'paused' | 'levelClear' | 'gameOver' | 'shop';
+type Mode =
+  | 'menu'
+  | 'cutscene'
+  | 'brief'
+  | 'playing'
+  | 'paused'
+  | 'levelClear'
+  | 'gameOver'
+  | 'shop';
 
 const KNOB_RANGE = 54;
 /** Tuvalin alan dışında bıraktığı pay (hücre): kenardaki gemi kırpılmasın. */
@@ -77,6 +89,9 @@ const context = require2d(canvas);
 
 const stage = element('stage');
 const overlay = element('overlay');
+const cutscene = element('cutscene');
+const cutsceneCanvas = element<HTMLCanvasElement>('cutscene-canvas');
+const cutsceneContext = require2d(cutsceneCanvas);
 const ui = {
   mission: element('mission'),
   score: element('score'),
@@ -125,6 +140,16 @@ let hudTimer = 0;
 /** Geminin baktığı yön; dururken son yön korunur. */
 let facing = -Math.PI / 2;
 let summary = { level: 1, percent: 0, score: 0, bonus: 0, gold: 0 };
+/** Yok olan düşmanların patlamaları ve prim yazıları. */
+const effects = new Effects();
+/**
+ * Görev bitince son kapatmanın patlamaları görünsün diye panel biraz
+ * gecikmeli açılır; bu sürede motor durmuş, efektler oynuyor.
+ */
+const CLEAR_DELAY = 0.9;
+let clearTimer = -1;
+/** Bölüm geçişi ara sahnesi: nereden nereye, kaçıncı saniyede. */
+let voyage = { from: null as number | null, to: 1, continueRun: false, t: 0 };
 
 /**
  * Dokunun iki hâli hücre çözünürlüğünde bir kez üretilir, her karede
@@ -207,7 +232,16 @@ function resize(): void {
   draw();
 }
 
-window.addEventListener('resize', resize);
+function resizeCutscene(): void {
+  const ratio = Math.min(window.devicePixelRatio || 1, 2);
+  cutsceneCanvas.width = Math.round(window.innerWidth * ratio);
+  cutsceneCanvas.height = Math.round(window.innerHeight * ratio);
+}
+
+window.addEventListener('resize', () => {
+  resize();
+  resizeCutscene();
+});
 
 // -------------------------------------------------------------------- çizim
 
@@ -291,32 +325,12 @@ function drawTrail(): void {
   context.stroke();
 }
 
-/** Şekil listesini (hücre biriminde) verilen bağlama çizer. */
-function drawShapes(target: CanvasRenderingContext2D, shapes: Shape[], scale: number): void {
-  for (const shape of shapes) {
-    target.globalAlpha = shape.alpha ?? 1;
-    target.fillStyle = shape.color;
-    target.beginPath();
-    if (shape.kind === 'circle') {
-      target.arc(shape.x * scale, shape.y * scale, shape.r * scale, 0, Math.PI * 2);
-    } else {
-      shape.points.forEach((point, index) => {
-        const x = point.x * scale;
-        const y = point.y * scale;
-        if (index === 0) target.moveTo(x, y);
-        else target.lineTo(x, y);
-      });
-      target.closePath();
-    }
-    target.fill();
-  }
-  target.globalAlpha = 1;
-}
-
 function drawCrew(): void {
   const look = { x: game.player.x + 0.5, y: game.player.y + 0.5 };
   for (const enemy of game.enemies) drawShapes(context, enemyShapes(enemy, look), cell);
   for (const shot of game.shots) drawShapes(context, shotShapes(shot), cell);
+  drawShapes(context, effects.shapes(), cell);
+  drawLabels(effects.labels());
 
   if (game.phase === 'dying') {
     // Gemi vuruldu: kısa bir patlama parıltısı.
@@ -346,6 +360,67 @@ function drawCrew(): void {
     cell
   );
   context.globalAlpha = 1;
+}
+
+/** Prim yazıları: koyu konturlu, zıplayarak açılıp yükselerek söner. */
+function drawLabels(labels: EffectLabel[]): void {
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.lineJoin = 'round';
+  for (const label of labels) {
+    const size = cell * (label.big ? LABEL_SIZE.big : LABEL_SIZE.small);
+    context.save();
+    context.globalAlpha = label.alpha;
+    context.translate(label.x * cell, label.y * cell);
+    context.scale(label.scale, label.scale);
+    context.font = `700 ${size}px Fredoka, system-ui, sans-serif`;
+    context.lineWidth = Math.max(2, size * 0.22);
+    context.strokeStyle = '#160a20';
+    context.strokeText(label.text, 0, 0);
+    context.fillStyle = label.color;
+    context.fillText(label.text, 0, 0);
+    if (label.sub) {
+      context.font = `700 ${size * 0.55}px Fredoka, system-ui, sans-serif`;
+      context.lineWidth = Math.max(2, size * 0.16);
+      context.strokeText(label.sub, 0, size * 0.85);
+      context.fillStyle = '#ffffff';
+      context.fillText(label.sub, 0, size * 0.85);
+    }
+    context.restore();
+  }
+  context.globalAlpha = 1;
+}
+
+// ---------------------------------------------------------------- ara sahne
+
+/** Ara sahne karesi: 100×160'lık sahne ekrana ortalanıp sığdırılır. */
+function drawCutscene(): void {
+  const ratio = cutsceneCanvas.width / Math.max(1, window.innerWidth);
+  const width = cutsceneCanvas.width / ratio;
+  const height = cutsceneCanvas.height / ratio;
+  const scale = Math.min(width / SCENE_W, height / SCENE_H);
+  const target = cutsceneContext;
+  target.setTransform(ratio, 0, 0, ratio, 0, 0);
+  target.fillStyle = '#07040f';
+  target.fillRect(0, 0, width, height);
+  target.translate((width - SCENE_W * scale) / 2, (height - SCENE_H * scale) / 2);
+
+  const frame = cutsceneFrame(voyage.from, voyage.to, voyage.t);
+  drawShapes(target, frame.shapes, scale);
+  drawSceneTexts(target, frame.texts, scale);
+}
+
+function drawSceneTexts(target: CanvasRenderingContext2D, texts: SceneText[], scale: number): void {
+  target.textAlign = 'center';
+  target.textBaseline = 'middle';
+  for (const text of texts) {
+    if (text.alpha <= 0 || text.text.length === 0) continue;
+    target.globalAlpha = text.alpha;
+    target.font = `${text.bold ? 700 : 500} ${text.size * scale}px Fredoka, system-ui, sans-serif`;
+    target.fillStyle = text.color;
+    target.fillText(text.text, text.x * scale, text.y * scale);
+  }
+  target.globalAlpha = 1;
 }
 
 // ---------------------------------------------------------------------- HUD
@@ -456,12 +531,13 @@ function render(): void {
         hint: MISSION_BRIEF,
         primary: {
           label: fresh ? 'GÖREVE BAŞLA' : 'GÖREVE DEVAM',
-          onPress: () => openBrief(profile.unlocked, false),
+          onPress: () =>
+            openVoyage(profile.unlocked, false, profile.unlocked > 1 ? profile.unlocked - 1 : null),
         },
         secondary: hangarAction(),
         tertiary: fresh
           ? undefined
-          : { label: '1. BÖLÜMDEN OYNA', onPress: () => openBrief(1, false) },
+          : { label: '1. BÖLÜMDEN OYNA', onPress: () => openVoyage(1, false, null) },
       });
       break;
     }
@@ -517,7 +593,7 @@ function render(): void {
         hint: 'Altınla hangarda kanat, motor, kuyruk, kompozit gövde, ışın topu ve kalkan alabilirsin.',
         primary: {
           label: 'SONRAKİ GÖREV',
-          onPress: () => openBrief(summary.level + 1, true),
+          onPress: () => openVoyage(summary.level + 1, true, summary.level),
         },
         secondary: hangarAction(),
         tertiary: { label: 'ANA EKRAN', onPress: () => setMode('menu') },
@@ -548,11 +624,13 @@ function render(): void {
       ui.shop.hidden = false;
       renderShop();
       break;
+    case 'cutscene':
     case 'playing':
       overlay.hidden = true;
       ui.shop.hidden = true;
       break;
   }
+  cutscene.hidden = mode !== 'cutscene';
   refreshHud();
 }
 
@@ -562,6 +640,23 @@ function setMode(next: Mode): void {
   setDiving(false);
   render();
 }
+
+/**
+ * Bölüm geçişi: gemi vücut haritasında temizlenen organdan hedefe yol alır,
+ * sonra brifing açılır. from null ise hikâyenin başı (enjeksiyon).
+ */
+function openVoyage(index: number, continueRun: boolean, from: number | null): void {
+  voyage = { from, to: index, continueRun, t: 0 };
+  resizeCutscene();
+  setMode('cutscene');
+  drawCutscene();
+}
+
+function endVoyage(): void {
+  if (mode === 'cutscene') openBrief(voyage.to, voyage.continueRun);
+}
+
+cutscene.addEventListener('click', endVoyage);
 
 /** Görev brifingi; continueRun true ise puan ve can taşınır. */
 function openBrief(index: number, continueRun: boolean): void {
@@ -581,6 +676,8 @@ function launch(): void {
   continuingRun = false;
   gridVersion = -1;
   themeLevel = -1;
+  effects.clear();
+  clearTimer = -1;
   setMode('playing');
 }
 
@@ -728,6 +825,11 @@ function inputFromKeys(): Input {
 
 window.addEventListener('keydown', (event) => {
   // Boşluk: çiz (basılı tutulur). ESC: duraklat / devam et.
+  if (mode === 'cutscene' && ['Space', 'Enter', 'Escape'].includes(event.code)) {
+    event.preventDefault();
+    if (!event.repeat) endVoyage();
+    return;
+  }
   if (event.code === 'Space') {
     event.preventDefault();
     if (mode === 'playing') setDiving(true);
@@ -742,6 +844,8 @@ window.addEventListener('keydown', (event) => {
   }
   if (event.code === 'Enter' && mode !== 'playing') {
     event.preventDefault();
+    // Basılı tutulan Enter ara sahneyi geçip brifingi de atlamasın.
+    if (event.repeat) return;
     if (mode === 'shop') closeShop();
     else ui.primary.click();
     return;
@@ -831,7 +935,15 @@ function tick(timestamp: number): void {
   facing = shipAngle(game.player.dx, game.player.dy, facing);
 
   if (mode === 'playing' && dt > 0) {
+    effects.update(dt);
+    if (clearTimer > 0) {
+      // Görev bitti: son patlamalar oynarken paneli bekle.
+      clearTimer -= dt;
+      if (clearTimer <= 0) setMode('levelClear');
+    }
     for (const event of game.update(dt, { dx: input.dx, dy: input.dy, dive: diving })) {
+      if (event.type === 'enemy-trapped') effects.trapped(event.enemy, event.points, event.chain);
+      if (event.type === 'enemy-down') effects.shotDown(event.enemy, event.points);
       if (event.type === 'level-clear') {
         // Sefer altını kasaya girer, sıradaki bölüm açılır.
         const earned = game.takeGold();
@@ -848,7 +960,7 @@ function tick(timestamp: number): void {
           bonus: event.bonus,
           gold: earned,
         };
-        setMode('levelClear');
+        clearTimer = CLEAR_DELAY;
       }
       if (event.type === 'game-over') {
         const earned = game.takeGold();
@@ -871,6 +983,12 @@ function tick(timestamp: number): void {
       hudTimer = 0;
       refreshHud();
     }
+  }
+
+  if (mode === 'cutscene') {
+    voyage.t += dt;
+    if (voyage.t >= CUTSCENE_LENGTH) endVoyage();
+    else drawCutscene();
   }
 
   draw();
