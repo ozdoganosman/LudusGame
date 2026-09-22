@@ -1,19 +1,60 @@
 import { PLAYER_SPEED } from '../config';
 import { Game } from '../game';
+import { speciesOf } from '../species';
+import type { SpeciesId } from '../species';
 import type { Enemy, EnemyKind, GameEvent, Input } from '../types';
 
-/** Test için sabit, hareketsiz düşman. */
+const SAMPLE: Record<EnemyKind, SpeciesId> = {
+  drifter: 'clot',
+  hunter: 'needle',
+  boss: 'sediment',
+};
+
+/**
+ * Test için sabit, hareketsiz düşman: hızı sıfır ve davranışı 'bouncer'
+ * olduğu için motor onu yerinden oynatmaz.
+ */
 export function makeEnemy(kind: EnemyKind, x: number, y: number, id = 1): Enemy {
   return {
     id,
     kind,
+    species: SAMPLE[kind],
+    behavior: 'bouncer',
     x,
     y,
     vx: 0,
     vy: 0,
-    radius: kind === 'boss' ? 2.1 : 1.3,
+    heading: 0,
+    speed: 0,
+    timer: 0,
+    phase: 0,
+    radius: speciesOf(SAMPLE[kind]).radius,
     spin: 0,
   };
+}
+
+/** Belirli bir türü sahaya koyar (davranış testleri için). */
+export function placeSpecies(game: Game, id: SpeciesId, x: number, y: number, speed = 8): Enemy {
+  const species = speciesOf(id);
+  const enemy: Enemy = {
+    id: 1,
+    kind: species.kind,
+    species: id,
+    behavior: species.behavior,
+    x,
+    y,
+    vx: speed,
+    vy: 0,
+    heading: 0,
+    speed,
+    timer: 0,
+    phase: 0,
+    anchor: species.behavior === 'spinner' ? { x, y } : undefined,
+    radius: species.radius,
+    spin: 0,
+  };
+  game.enemies = [enemy];
+  return enemy;
 }
 
 /**

@@ -15,7 +15,8 @@ import { territoryOutline } from '../src/ui/contour';
 import type { Point } from '../src/ui/contour';
 import { enemyShapes, shipAngle, shipShapes, shotShapes } from '../src/ui/creatures';
 import type { Shape } from '../src/ui/creatures';
-import { bestiaryLine, monsterFor, tissueTheme } from '../src/ui/tissues';
+import { bestiaryLine } from '../src/ui/bestiary';
+import { tissueTheme } from '../src/ui/tissues';
 import type { TissueTheme } from '../src/ui/tissues';
 import { partCards } from '../src/ui/parts';
 import {
@@ -314,9 +315,7 @@ function drawShapes(target: CanvasRenderingContext2D, shapes: Shape[], scale: nu
 
 function drawCrew(): void {
   const look = { x: game.player.x + 0.5, y: game.player.y + 0.5 };
-  for (const enemy of game.enemies) {
-    drawShapes(context, enemyShapes(enemy, look, monsterFor(theme, enemy.kind)), cell);
-  }
+  for (const enemy of game.enemies) drawShapes(context, enemyShapes(enemy, look), cell);
   for (const shot of game.shots) drawShapes(context, shotShapes(shot), cell);
 
   if (game.phase === 'dying') {

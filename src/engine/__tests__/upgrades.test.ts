@@ -81,19 +81,17 @@ test('kampanya görev görev zorlaşır', () => {
     previousReward = plan.reward;
   }
 
-  const first = missionPlan(1).config;
-  const last = missionPlan(CAMPAIGN_LENGTH).config;
-  assert.ok(last.drifters > first.drifters);
+  const first = missionPlan(1).difficulty;
+  const last = missionPlan(CAMPAIGN_LENGTH).difficulty;
+  assert.ok(last.swarm > first.swarm);
   assert.ok(last.hunters > first.hunters);
-  assert.ok(last.drifterSpeed > first.drifterSpeed);
+  assert.ok(last.speed > first.speed);
   assert.ok(last.hunterTurn > first.hunterTurn, 'virüsler görev görev daha ısrarlı olur');
   assert.ok(last.spawnInterval < first.spawnInterval, 'doğumlar sıklaşır');
-  assert.equal(first.hunters, 0, 'ilk görevde virüs yok — ama mikrop bolluğu var');
-
-  // İlk bölüm de rahat değil: birden çok mikrop, hızlı patojen, sık doğum.
-  assert.ok(first.drifters >= 2, 'ilk görevde en az iki mikrop');
-  assert.ok(first.drifterSpeed >= 9);
-  assert.ok(first.bossSpeed >= 11);
+  // İlk bölüm de rahat değil: iki tür mikrop, bir avcı, hızlı patojen, sık doğum.
+  assert.ok(first.hunters >= 1, 'ilk görevde de avcı virüs var');
+  assert.ok(first.swarm >= 2, 'ilk görevde en az iki mikrop');
+  assert.ok(first.speed >= 9);
   assert.ok(first.spawnInterval <= 24);
   assert.ok(missionPlan(1).target >= 62, 'ilk görevde hedef en az %62');
 });

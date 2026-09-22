@@ -30,9 +30,9 @@ Aynı oyun motoru iki yerde çalışır: **mobil** (Expo / React Native + Skia) 
 | Risk | Dokuya girdiğin anda iz bırakmaya başlarsın ve açıktasın |
 | Geri sarma | İzde geldiğin yönde geri gidersen geçtiğin hücreler silinir; başa dönersen iz iptal olur |
 | Ölüm | Düşman izine veya gemiye değerse, ya da kendi izinin **başka** bir yerine girersen |
-| Patojen (pembe) | Bulunduğu bölge temizlenemez, her yerde tehlikelidir |
-| Mikrop (renkli) | Rastgele seker; temizlenen bölgede kalırsa yok olur ve puan verir |
-| Virüs | 3. bölümden sonra çıkar, gemiyi takip eder; görev görev daha ısrarlı döner |
+| Patojen (patron) | Bulunduğu bölge temizlenemez, her yerde tehlikelidir |
+| Mikroplar | Temizlenen bölgede kalırlarsa yok olur ve puan verirler |
+| Virüsler | Avcı türler; gemiyi takip eder, sıçrar ya da atılır |
 | Işın topu | Satın alındıysa baktığın yöne otomatik ateş eder; mikrop ve virüsü düşürür, patronu savurur |
 | Kalkan | Satın alındıysa mikrop/virüs darbesini emer (iz gider, can gitmez) ve zamanla dolar |
 
@@ -50,16 +50,36 @@ temizlediğin alan aynı dokunun sağlıklı hâline döner (soluk borusunda tem
 kırmızı, lenf düğümünde berrak turkuaz). Desenler yordamsal: varlık dosyası yok,
 her doku kendi görüntüsünü hesaplıyor.
 
-**Her bölümün kendi canavarları var.** Mikrop/virüs/patojen davranışları aynı
-kalır ama görünüşleri bölüme göre değişir: solucan, basil, kok kümesi, spor,
-denizanası, kristal, faj, amip; patronlar dişli ağız, dev göz ya da üç başlı
-hidra. Adları da bölüme özel (balgam solucanı, lenf denizanası, BOĞAZ TIKACI…) ve
-brifingde yazılı.
+**Her bölümün kendi türleri var** — hem görünüş hem hareket olarak. 42 tür, 16
+ayrı siluet (salkım, çubuk + kamçı, spiral, eklemli solucan, dikenli yıldız,
+delikli halka, mızrak, dönen çarpı, çanlı denizanası, kristal, altıgen başlı faj,
+amip; patronlar dişli ağız, dev göz, üç başlı hidra, dikenli taç) ve **11 hareket
+davranışı**:
 
-**Zorluk ilk bölümden itibaren sıkıştırır:** 1. bölüm iki mikrop, hızlı bir
-patojen ve 23 saniyede bir yeni doğumla başlar; her bölümde temizlenecek alan
-büyür, düşman sayısı ve hızı yükselir, doğumlar sıklaşır, virüsler daha ısrarlı
-döner. 12. bölümde sekiz mikrop, beş virüs ve iki kat hızlı bir patojen var.
+| Davranış | Nasıl hareket eder |
+| --- | --- |
+| Seken | Düz gider, duvardan seker |
+| Kıvrılan | Yılan gibi yana salınarak ilerler |
+| Nabızlı | İter, sürüklenir, yeniden iter (denizanası) |
+| Atılgan | Bekler, sonra düz bir hatta fırlar |
+| Zıplayan | Gemiye doğru kısa sıçramalar yapar |
+| Duvarda gezen | Temizlediğin alanın sınırına yapışıp orada dolaşır |
+| Takipçi | Israrla gemiyi kovalar |
+| Dönen | Bir noktanın çevresinde dönerek alanı tarar |
+| Hücum eden | Ağır ağır dolaşır, sonra üstüne atılır |
+| Sekiz çizen | Sekiz şeklinde gezinir |
+| Bölünen | Zamanla ikiye ayrılır, her kopya bir öncekinden küçük |
+
+Her bölümün kadrosu ortak mikrop + ikinci bir tür + avcı + patron olarak kurulur;
+aynı bölümde en az üç farklı davranış bulunur ve iki tür aynı silueti ya da rengi
+paylaşmaz (testle sabit). Adlar da bölüme özel (balgam solucanı, trombosit dikeni,
+lenf denizanası, BOĞAZ TIKACI…) ve brifingde yazılı.
+
+**Zorluk ilk bölümden itibaren sıkıştırır:** 1. bölüm iki tür mikrop, bir avcı
+virüs, hücum eden bir patojen ve 23 saniyede bir yeni doğumla başlar; her bölümde
+temizlenecek alan büyür, tür sayısı ve hızları yükselir, doğumlar sıklaşır,
+avcılar daha ısrarlı döner. 12. bölümde altı amip (duvarda gezen), iki spiral,
+beş faj ve sekiz çizen bir patron var.
 
 Görevi tamamlarsan puan ve can sıradaki bölüme taşınır; filo tükenirse kazandığın
 altın kasada kalır, gemiyi güçlendirip aynı bölüme dönersin.
@@ -140,7 +160,7 @@ Hızlı yol olarak `npm run build:web` sonrası `dist/` klasörünü
 ## Geliştirme
 
 ```bash
-npm test         # motor ve arayüz testleri (69 test)
+npm test         # motor ve arayüz testleri (86 test)
 npm run typecheck
 npm run lint
 npm run build:web  # dist/ üretir
@@ -152,11 +172,12 @@ npm run preview    # motoru başsız oynatıp docs/preview.png üretir
 ```
 src/engine/        Platformdan bağımsız oyun motoru (saf TypeScript, React içermez)
   types.ts         Hücre durumları, düşman, mermi ve olay tipleri
-  campaign.ts      Görev planı: hedef yüzde, kadro, altın primi (sonsuz dalgalar dahil)
+  campaign.ts      Görev planı: hedef yüzde, tür kadrosu, altın primi (sonsuz dalgalar dahil)
+  species.ts       Türler: hareket davranışı, hız çarpanı, boyut
   config.ts        Alan boyutu, hızlar, zorluk eğrisi
   upgrades.ts      Parçalar, kademe fiyatları ve oynanış etkileri (ShipStats)
   field.ts         Grid, bölge etiketleme (flood fill), ele geçirme kuralları
-  game.ts          Oyuncu adımları, düşman davranışı, çarpışma, seviye akışı
+  game.ts          Oyuncu adımları, 11 düşman davranışı, çarpışma, görev akışı
   input.ts         8 yöne yuvarlama + ölü bölge (mobil ve web ortak kullanır)
   rng.ts           Deterministik PRNG (testler tekrarlanabilir olsun diye)
 src/ui/            React Native / Skia katmanı
@@ -169,8 +190,9 @@ src/ui/            React Native / Skia katmanı
   parts.ts         Parça adları ve etki metinleri
   profile.ts       Kalıcı profil: altın, parçalar, açılan bölüm, rekor
   contour.ts       Sınır çokgeni çıkarma ve merdiven köşelerini pahlama
-  creatures.ts     Gemi, parçalar ve 11 canavar arketipinin şekilleri
-  tissues.ts       Bölüm başına doku renkleri, arka plan deseni ve canavar kadrosu
+  creatures.ts     Gemi, parçalar ve 16 canavar siluetinin şekilleri
+  tissues.ts       Bölüm başına doku renkleri ve arka plan deseni
+  bestiary.ts      Türlerin silueti, rengi ve tema adı
   story.ts         Ana hikâye, bölüm brifingleri, düşman tema adları
   gridImage.ts     Yordamsal doku görüntüleri (hastalıklı zemin, iyileşmiş doku, ham grid)
   palette.ts       Arayüzün ortak renkleri (gemi, iz, paneller)
@@ -197,6 +219,13 @@ App.tsx            Mobil ekran akışı (menü / oyun / duraklatma / seviye sonu
 - **Ele geçirme.** İz kapandığında boş hücreler 4 komşuluk üzerinden bölgelere ayrılır;
   patronun bulunmadığı her bölge doldurulur. 4 komşuluk seçilmesi izin çapraz
   hareketlerde de sızdırmaz bir duvar olmasını sağlar.
+- **Davranış ile görünüş ayrı ama tek kimliğe bağlı.** Bir türün kimliği
+  (`SpeciesId`) motorda hareketini, hızını ve boyutunu (`src/engine/species.ts`),
+  arayüzde siluetini, rengini ve adını (`src/ui/bestiary.ts`) belirler. Motor
+  arayüzü bilmez; iki tablonun aynı anahtarları paylaştığı testle sabitlenmiştir.
+  Davranışlar ortak bir iskelet üzerinde çalışır: `heading` gidilen yön, `speed`
+  temel hız, davranış o anki çarpanı belirler; duvardan sekme her davranış için
+  ortaktır ve yönü günceller.
 - **Yükseltmeler tek yerden.** Parçaların oynanışa etkisi `shipStats(loadout)`
   ile türetilir (`src/engine/upgrades.ts`); motor yalnızca bu değerleri okur,
   arayüz de aynı değerleri metne çevirir (`src/ui/parts.ts`). Fabrika çıkışı gemi

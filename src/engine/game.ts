@@ -1,6 +1,5 @@
 import { KILL_GOLD, captureGold, missionPlan } from './campaign';
 import type { MissionPlan } from './campaign';
-import type { LevelConfig } from './config';
 import {
   FIELD_H,
   FIELD_W,
@@ -9,11 +8,12 @@ import {
   MAX_ENEMIES,
   RESPAWN_INVULN,
   START_LIVES,
-  levelConfig,
 } from './config';
 import { Field, clearTrail, closeTrail } from './field';
 import { createRng } from './rng';
 import type { Rng } from './rng';
+import { speciesOf } from './species';
+import type { SpeciesId } from './species';
 import { defaultLoadout, normalizeLoadout, shipStats } from './upgrades';
 import type { Loadout, ShipStats } from './upgrades';
 import { EMPTY, FILLED, TRAIL } from './types';
@@ -43,6 +43,12 @@ export type GameOptions = {
 /** Tek karede havada olabilecek en fazla mermi. */
 const MAX_SHOTS = 12;
 
+/** Bölünen türlerin çoğalma aralığı (saniye). */
+const SPLIT_INTERVAL = 7;
+
+/** Bölünerek bundan küçük olan tür artık bölünmez. */
+const MIN_SPLIT_RADIUS = 1.05;
+
 const NO_INPUT: Input = { dx: 0, dy: 0 };
 
 export class Game {
@@ -67,7 +73,7 @@ export class Game {
   /** Kalan dokunulmazlık süresi (saniye). */
   invulnerable = 0;
 
-  private config: LevelConfig = levelConfig(1);
+  private mission: MissionPlan = missionPlan(1);
   private loadout: Loadout;
   private stats: ShipStats;
   private readonly baseLives: number;
@@ -109,7 +115,7 @@ export class Game {
 
   /** O an oynanan görevin planı (hedef, kadro, prim). */
   get plan(): MissionPlan {
-    return missionPlan(this.level);
+    return this.mission;
   }
 
   /** Geminin yükseltmelerden gelen oynanış değerleri. */
@@ -148,8 +154,7 @@ export class Game {
   /** Görev kurulumu: alan temizlenir, oyuncu ve düşmanlar yerleştirilir. */
   startMission(index: number): void {
     const plan = missionPlan(index);
-    const config = plan.config;
-    this.config = config;
+    this.mission = plan;
     this.level = plan.index;
     this.targetPercent = this.targetOverride ?? plan.target;
     this.shots = [];
@@ -161,7 +166,7 @@ export class Game {
     this.stepAccumulator = 0;
     this.invulnerable = RESPAWN_INVULN;
     this.freeze = 0;
-    this.spawnTimer = config.spawnInterval;
+    this.spawnTimer = plan.difficulty.spawnInterval;
     this.enemies = [];
     this.nextEnemyId = 1;
 
@@ -172,15 +177,17 @@ export class Game {
     this.player.drawing = false;
     this.trailStart = { x: this.player.x, y: this.player.y };
 
-    this.enemies.push(this.createEnemy('boss', config.bossSpeed, {
-      x: this.field.w / 2,
-      y: this.field.h / 3,
-    }));
-    for (let i = 0; i < config.drifters; i++) {
-      this.enemies.push(this.createEnemy('drifter', config.drifterSpeed));
-    }
-    for (let i = 0; i < config.hunters; i++) {
-      this.enemies.push(this.createEnemy('hunter', config.hunterSpeed));
+    // Kadro bölüme özel: her tür kendi davranışı, hızı ve boyutuyla gelir.
+    for (const entry of plan.roster) {
+      const boss = speciesOf(entry.species).kind === 'boss';
+      for (let i = 0; i < entry.count; i++) {
+        this.enemies.push(
+          this.createEnemy(
+            entry.species,
+            boss ? { x: this.field.w / 2, y: this.field.h / 3 } : undefined
+          )
+        );
+      }
     }
 
     this.phase = 'playing';
@@ -229,6 +236,8 @@ export class Game {
 
     this.updateShots(step);
     if (this.phase !== 'playing') return this.events;
+
+    this.handleSplits();
 
     this.handleSpawning(step);
     this.checkLevelClear();
@@ -472,7 +481,13 @@ export class Game {
       const points = (enemy.kind === 'hunter' ? 300 : 150) * this.level;
       this.score += points;
       this.gold += KILL_GOLD;
-      this.events.push({ type: 'enemy-down', kind: enemy.kind, points, gold: KILL_GOLD });
+      this.events.push({
+        type: 'enemy-down',
+        kind: enemy.kind,
+        species: enemy.species,
+        points,
+        gold: KILL_GOLD,
+      });
       return true;
     }
     return false;
@@ -508,22 +523,199 @@ export class Game {
     }
   }
 
+  /**
+   * Türün davranışına göre yön ve hız. Ortak kural: `heading` gidilen yön,
+   * `speed` temel hız, dönen çarpan o anki hız katsayısı. Duvardan sekme
+   * moveEnemy içinde olur ve heading'i günceller.
+   */
   private steerEnemy(enemy: Enemy, dt: number): void {
-    if (enemy.kind === 'drifter') return;
+    enemy.timer += dt;
+    let angle = enemy.heading;
+    let factor = 1;
 
-    const speed = Math.hypot(enemy.vx, enemy.vy) || 1;
-    let angle = Math.atan2(enemy.vy, enemy.vx);
+    switch (enemy.behavior) {
+      case 'bouncer':
+      case 'splitter':
+        // Düz gider, duvardan seker. Bölünme handleSplits içinde.
+        break;
 
-    if (enemy.kind === 'hunter') {
-      const want = Math.atan2(this.player.y - enemy.y, this.player.x - enemy.x);
-      angle += clampAngle(want - angle, this.config.hunterTurn * dt);
-    } else {
-      // Patron serbest dolaşır, ara sıra rotasını kırar.
-      angle += (this.rng.next() - 0.5) * 1.2 * dt;
+      case 'slither':
+        // Gövde yönü korunur, yalnızca yana kıvrılır.
+        angle = enemy.heading + Math.sin(enemy.timer * 5) * 0.9;
+        break;
+
+      case 'pulse': {
+        // Denizanası: iter, sürüklenir, yeniden iter.
+        enemy.heading += (this.rng.next() - 0.5) * 1.2 * dt;
+        const beat = Math.sin(enemy.timer * 2.4);
+        factor = beat > 0 ? 0.3 + beat * 1.3 : 0.15;
+        angle = enemy.heading;
+        break;
+      }
+
+      case 'dasher':
+        // Bekler, sonra rastgele bir hatta atılır.
+        if (enemy.timer >= (enemy.phase === 0 ? 0.9 : 0.75)) {
+          enemy.timer = 0;
+          enemy.phase = enemy.phase === 0 ? 1 : 0;
+          if (enemy.phase === 1) enemy.heading = this.rng.range(0, Math.PI * 2);
+        }
+        factor = enemy.phase === 0 ? 0.05 : 2.2;
+        angle = enemy.heading;
+        break;
+
+      case 'hopper':
+        // Oyuncuya doğru kısa sıçramalar.
+        if (enemy.timer >= (enemy.phase === 0 ? 0.5 : 0.3)) {
+          enemy.timer = 0;
+          enemy.phase = enemy.phase === 0 ? 1 : 0;
+          if (enemy.phase === 1) {
+            enemy.heading = this.angleToPlayer(enemy) + (this.rng.next() - 0.5) * 0.6;
+          }
+        }
+        factor = enemy.phase === 0 ? 0.12 : 2.4;
+        angle = enemy.heading;
+        break;
+
+      case 'crawler': {
+        // Temizlenmiş dokunun sınırını yoklar: duvara değdiyse teğet geçer,
+        // değmediyse oyuncuya yönelir. Güvenli bölgenin kenarında dolaşır.
+        const wall = this.wallDirection(enemy);
+        if (wall === null) {
+          enemy.heading += clampAngle(this.angleToPlayer(enemy) - enemy.heading, 1.1 * dt);
+        } else {
+          enemy.heading = this.slideAlongWall(enemy, wall);
+        }
+        factor = 0.85;
+        angle = enemy.heading;
+        break;
+      }
+
+      case 'stalker':
+        // Israrlı takip.
+        enemy.heading += clampAngle(
+          this.angleToPlayer(enemy) - enemy.heading,
+          this.mission.difficulty.hunterTurn * dt
+        );
+        angle = enemy.heading;
+        break;
+
+      case 'spinner': {
+        // Çapasının çevresinde dönerek alanı tarar.
+        const anchor = enemy.anchor ?? { x: enemy.x, y: enemy.y };
+        const radial = Math.atan2(enemy.y - anchor.y, enemy.x - anchor.x);
+        const distance = Math.hypot(enemy.y - anchor.y, enemy.x - anchor.x);
+        // Yarıçapı koru: uzaklaştıysa içe, yaklaştıysa dışa kır.
+        const pull = distance > 11 ? -0.55 : distance < 6 ? 0.55 : 0;
+        enemy.heading = radial + Math.PI / 2 + pull;
+        factor = 1.1;
+        angle = enemy.heading;
+        break;
+      }
+
+      case 'charger':
+        // Ağır ağır dolaşır, sonra hücum eder.
+        if (enemy.timer >= (enemy.phase === 0 ? 3.2 : 1.3)) {
+          enemy.timer = 0;
+          enemy.phase = enemy.phase === 0 ? 1 : 0;
+          if (enemy.phase === 1) enemy.heading = this.angleToPlayer(enemy);
+        }
+        if (enemy.phase === 0) {
+          enemy.heading += (this.rng.next() - 0.5) * 1.8 * dt;
+          factor = 0.5;
+        } else {
+          factor = 2.3;
+        }
+        angle = enemy.heading;
+        break;
+
+      case 'weaver':
+        // Sekiz çizerek gezinir: iki eksende farklı frekans.
+        enemy.vx = Math.cos(enemy.timer * 0.85) * enemy.speed;
+        enemy.vy = Math.sin(enemy.timer * 1.7) * enemy.speed;
+        enemy.heading = Math.atan2(enemy.vy, enemy.vx);
+        return;
     }
 
-    enemy.vx = Math.cos(angle) * speed;
-    enemy.vy = Math.sin(angle) * speed;
+    enemy.vx = Math.cos(angle) * enemy.speed * factor;
+    enemy.vy = Math.sin(angle) * enemy.speed * factor;
+  }
+
+  /** Düşmandan gemiye olan açı. */
+  private angleToPlayer(enemy: Enemy): number {
+    return Math.atan2(this.player.y + 0.5 - enemy.y, this.player.x + 0.5 - enemy.x);
+  }
+
+  /**
+   * Yakındaki temizlenmiş dokunun yönü (radyan); yakında yoksa null.
+   * Duvarda gezen türler bunu kullanarak sınırı takip eder.
+   */
+  private wallDirection(enemy: Enemy): number | null {
+    const { field } = this;
+    const cx = Math.floor(enemy.x);
+    const cy = Math.floor(enemy.y);
+    let sumX = 0;
+    let sumY = 0;
+    let hits = 0;
+
+    for (let dy = -2; dy <= 2; dy++) {
+      for (let dx = -2; dx <= 2; dx++) {
+        if (dx === 0 && dy === 0) continue;
+        const x = cx + dx;
+        const y = cy + dy;
+        if (field.inBounds(x, y) && field.get(x, y) !== FILLED) continue;
+        sumX += dx;
+        sumY += dy;
+        hits++;
+      }
+    }
+
+    return hits === 0 ? null : Math.atan2(sumY, sumX);
+  }
+
+  /** Duvarın teğeti: mevcut yöne en yakın olanı seçer, sınıra hafifçe yapışır. */
+  private slideAlongWall(enemy: Enemy, wall: number): number {
+    const options = [wall + Math.PI / 2, wall - Math.PI / 2];
+    let best = options[0];
+    let bestDiff = Infinity;
+    for (const option of options) {
+      const diff = Math.abs(clampAngle(option - enemy.heading, Math.PI));
+      if (diff < bestDiff) {
+        bestDiff = diff;
+        best = option;
+      }
+    }
+    return best + clampAngle(wall - best, 0.3);
+  }
+
+  /** Bölünen türler zamanla çoğalır; her kopya bir öncekinden küçük olur. */
+  private handleSplits(): void {
+    const born: Enemy[] = [];
+
+    for (const enemy of this.enemies) {
+      if (enemy.behavior !== 'splitter') continue;
+      if (enemy.timer < SPLIT_INTERVAL) continue;
+      enemy.timer = 0;
+      if (enemy.radius < MIN_SPLIT_RADIUS) continue;
+      if (this.enemies.length + born.length >= MAX_ENEMIES) continue;
+
+      enemy.radius *= 0.78;
+      enemy.heading += 0.7;
+      const child: Enemy = {
+        ...enemy,
+        id: this.nextEnemyId++,
+        heading: enemy.heading - 1.4,
+        timer: 0,
+        x: enemy.x + Math.cos(enemy.heading - 1.4) * enemy.radius,
+        y: enemy.y + Math.sin(enemy.heading - 1.4) * enemy.radius,
+      };
+      child.vx = Math.cos(child.heading) * child.speed;
+      child.vy = Math.sin(child.heading) * child.speed;
+      born.push(child);
+      this.events.push({ type: 'enemy-split', species: enemy.species });
+    }
+
+    this.enemies.push(...born);
   }
 
   private moveEnemy(enemy: Enemy, dt: number): void {
@@ -531,8 +723,10 @@ export class Game {
     const nx = enemy.x + enemy.vx * dt;
     const cellY = Math.floor(enemy.y);
     const nextX = Math.floor(nx);
+    let bounced = false;
     if (!field.inBounds(nextX, cellY) || field.get(nextX, cellY) === FILLED) {
       enemy.vx = -enemy.vx;
+      bounced = true;
     } else {
       enemy.x = nx;
     }
@@ -542,9 +736,13 @@ export class Game {
     const nextY = Math.floor(ny);
     if (!field.inBounds(cellX, nextY) || field.get(cellX, nextY) === FILLED) {
       enemy.vy = -enemy.vy;
+      bounced = true;
     } else {
       enemy.y = ny;
     }
+
+    // Sekme yönü değiştirdi: davranışlar heading üzerinden çalıştığı için eşitle.
+    if (bounced) enemy.heading = Math.atan2(enemy.vy, enemy.vx);
 
     // Güvenlik ağı: sıkışan düşman alanın içine çekilir.
     enemy.x = clamp(enemy.x, 1, field.w - 1);
@@ -579,26 +777,37 @@ export class Game {
   }
 
   private handleSpawning(dt: number): void {
-    const config = this.config;
-    if (config.spawnInterval <= 0) return;
+    const { spawnInterval } = this.mission.difficulty;
+    if (spawnInterval <= 0) return;
     this.spawnTimer -= dt;
     if (this.spawnTimer > 0) return;
-    this.spawnTimer = config.spawnInterval;
+    this.spawnTimer = spawnInterval;
     if (this.enemies.length >= MAX_ENEMIES) return;
-    this.enemies.push(this.createEnemy('drifter', config.drifterSpeed));
+    this.enemies.push(this.createEnemy(this.mission.spawn));
   }
 
-  private createEnemy(kind: Enemy['kind'], speed: number, at?: Vec): Enemy {
+  private createEnemy(id: SpeciesId, at?: Vec): Enemy {
+    const species = speciesOf(id);
     const position = at ?? this.findSpawnPoint();
-    const angle = this.rng.range(0, Math.PI * 2);
+    const heading = this.rng.range(0, Math.PI * 2);
+    const speed = this.mission.difficulty.speed * species.speed;
+
     return {
       id: this.nextEnemyId++,
-      kind,
+      kind: species.kind,
+      species: species.id,
+      behavior: species.behavior,
       x: position.x,
       y: position.y,
-      vx: Math.cos(angle) * speed,
-      vy: Math.sin(angle) * speed,
-      radius: kind === 'boss' ? 2.1 : 1.3,
+      vx: Math.cos(heading) * speed,
+      vy: Math.sin(heading) * speed,
+      heading,
+      speed,
+      // Aynı türden düşmanlar aynı anda hareket etmesin diye sayaç kaydırılır.
+      timer: this.rng.range(0, 2),
+      phase: 0,
+      anchor: species.behavior === 'spinner' ? { x: position.x, y: position.y } : undefined,
+      radius: species.radius,
       spin: this.rng.range(0, Math.PI * 2),
     };
   }

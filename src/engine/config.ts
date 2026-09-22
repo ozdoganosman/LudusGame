@@ -20,12 +20,13 @@ export const MAX_DT = 1 / 20;
 
 export const MAX_ENEMIES = 15;
 
-export type LevelConfig = {
-  drifters: number;
+export type Difficulty = {
+  /** Patron dışındaki mikrop/tür sayısı bütçesi. */
+  swarm: number;
+  /** Avcı sayısı. */
   hunters: number;
-  drifterSpeed: number;
-  hunterSpeed: number;
-  bossSpeed: number;
+  /** Bölümün temel hızı (hücre/saniye); tür çarpanıyla çarpılır. */
+  speed: number;
   /** Avcının dönüş çevikliği (radyan/saniye); yükseldikçe daha ısrarlı takip. */
   hunterTurn: number;
   /** Yeni düşman doğma aralığı (saniye); 0 ise doğma yok. */
@@ -33,19 +34,17 @@ export type LevelConfig = {
 };
 
 /**
- * Zorluk eğrisi. İlk görev de dahil oyun baştan sıkıştırır: iki mikrop, hızlı
- * bir patojen ve 23 saniyede bir yeni doğum. Virüsler 3. görevde sahneye girer.
- * Kampanya bittikten sonra da artmaya devam eder; üst sınırlar MAX_ENEMIES ile
+ * Zorluk eğrisi. İlk görev de dahil oyun baştan sıkıştırır: iki mikrop, bir
+ * avcı virüs, hızlı bir patojen ve 23 saniyede bir yeni doğum. Kampanya
+ * bittikten sonra da artmaya devam eder; üst sınırlar MAX_ENEMIES ile
  * dengelenir.
  */
-export function levelConfig(level: number): LevelConfig {
+export function difficulty(level: number): Difficulty {
   const n = Math.max(1, level);
   return {
-    drifters: Math.min(8, 2 + Math.floor(n * 0.8)),
-    hunters: n < 3 ? 0 : Math.min(5, Math.floor((n - 1) / 2)),
-    drifterSpeed: 9 + n,
-    hunterSpeed: 8.5 + n * 0.8,
-    bossSpeed: 11 + n * 1.1,
+    swarm: Math.min(8, 2 + Math.floor(n * 0.8)),
+    hunters: Math.min(5, Math.max(1, Math.floor((n - 1) / 2))),
+    speed: 9 + n,
     hunterTurn: Math.min(3.2, 1.8 + n * 0.12),
     spawnInterval: Math.max(7, 24 - n * 1.4),
   };

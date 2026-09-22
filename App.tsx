@@ -30,7 +30,7 @@ import {
   missionProgress,
 } from './src/ui/story';
 import { loadProfile, saveProfile } from './src/ui/storage';
-import { bestiaryLine } from './src/ui/tissues';
+import { bestiaryLine } from './src/ui/bestiary';
 import { useGameLoop } from './src/ui/useGameLoop';
 
 type Mode = 'menu' | 'brief' | 'playing' | 'paused' | 'levelClear' | 'gameOver' | 'shop';

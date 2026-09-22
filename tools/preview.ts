@@ -11,7 +11,8 @@ import { EMPTY } from '../src/engine/types';
 import type { Enemy, Input } from '../src/engine/types';
 import { writeFieldPixels } from '../src/ui/gridImage';
 import { hexToRgb, palette } from '../src/ui/palette';
-import { monsterFor, tissueTheme } from '../src/ui/tissues';
+import { speciesVisual } from '../src/ui/bestiary';
+import { tissueTheme } from '../src/ui/tissues';
 import { encodePng } from './png';
 
 const SCALE = 3;
@@ -192,7 +193,7 @@ function renderSnapshot(game: Game): Snapshot {
   }
 
   for (const enemy of game.enemies) {
-    fillCircle(pixels, width, height, enemy.x * SCALE, enemy.y * SCALE, enemy.radius * SCALE, enemyColor(enemy, game.level));
+    fillCircle(pixels, width, height, enemy.x * SCALE, enemy.y * SCALE, enemy.radius * SCALE, enemyColor(enemy));
   }
   fillCircle(
     pixels,
@@ -212,9 +213,9 @@ function renderSnapshot(game: Game): Snapshot {
   };
 }
 
-/** Düşmanın o bölümdeki canavar rengi. */
-function enemyColor(enemy: Enemy, level: number) {
-  return hexToRgb(monsterFor(tissueTheme(level), enemy.kind).color);
+/** Düşmanın tür rengi. */
+function enemyColor(enemy: Enemy) {
+  return hexToRgb(speciesVisual(enemy.species).color);
 }
 
 function fillCircle(

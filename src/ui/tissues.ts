@@ -1,12 +1,11 @@
 /**
- * Bölümlerin görsel kimliği: hastalıklı dokunun ve iyileşmiş dokunun renkleri,
- * arka plan doku deseni ve o bölümün canavar kadrosu.
+ * Bölümlerin doku kimliği: hastalıklı ve iyileşmiş dokunun renkleri ile arka
+ * plan deseni. Türlerin görünümü src/ui/bestiary.ts içinde.
  *
  * Yalnızca görünüm — hedef yüzde, düşman sayısı ve hız motorun kampanya
  * planından gelir (src/engine/campaign.ts).
  */
 import { CAMPAIGN_LENGTH } from '../engine/campaign';
-import type { EnemyKind } from '../engine/types';
 
 /** Arka plan deseni; her doku kendi dokusuyla çizilir. */
 export type TextureKind =
@@ -23,28 +22,6 @@ export type TextureKind =
   | 'nerve'
   | 'core';
 
-/** Canavar arketipleri; şekilleri src/ui/creatures.ts içinde. */
-export type MonsterFamily =
-  | 'coccus'
-  | 'bacillus'
-  | 'worm'
-  | 'spore'
-  | 'jelly'
-  | 'crystal'
-  | 'phage'
-  | 'amoeba'
-  | 'maw'
-  | 'eye'
-  | 'hydra';
-
-export type Monster = {
-  family: MonsterFamily;
-  /** Gövde rengi. */
-  color: string;
-  /** Tema adı; brifingde geçer. */
-  name: string;
-};
-
 export type TissueTheme = {
   /** Hastalıklı doku: temel renk. */
   sick: string;
@@ -59,10 +36,6 @@ export type TissueTheme = {
   /** İyileşmiş alanın sınır ışığı. */
   healthyEdge: string;
   texture: TextureKind;
-  /** Bölümün canavarları (motor davranışına göre). */
-  drifter: Monster;
-  hunter: Monster;
-  boss: Monster;
 };
 
 const THEMES: TissueTheme[] = [
@@ -75,9 +48,6 @@ const THEMES: TissueTheme[] = [
     healthyLight: '#e0475c',
     healthyEdge: '#ff8fa3',
     texture: 'vein',
-    drifter: { family: 'coccus', color: '#d8e04b', name: 'pıhtı mikrobu' },
-    hunter: { family: 'bacillus', color: '#b06bff', name: 'iğne virüsü' },
-    boss: { family: 'maw', color: '#ff3d6e', name: 'TORTU ÇEKİRDEĞİ' },
   },
   {
     // 2 — SOLUK BORUSU: sümüklü gri-yeşil, iyileşince temiz kırmızı.
@@ -88,9 +58,6 @@ const THEMES: TissueTheme[] = [
     healthyLight: '#e2637a',
     healthyEdge: '#ffa8b4',
     texture: 'mucus',
-    drifter: { family: 'worm', color: '#9fe04b', name: 'balgam solucanı' },
-    hunter: { family: 'phage', color: '#8f6bff', name: 'siliyer virüs' },
-    boss: { family: 'maw', color: '#ff4f5e', name: 'BOĞAZ TIKACI' },
   },
   {
     // 3 — AKCİĞER: kararmış hava keseleri, iyileşince pembe.
@@ -101,9 +68,6 @@ const THEMES: TissueTheme[] = [
     healthyLight: '#e98b9c',
     healthyEdge: '#ffb3c1',
     texture: 'alveoli',
-    drifter: { family: 'spore', color: '#7fd6c0', name: 'kese küfü' },
-    hunter: { family: 'phage', color: '#a678ff', name: 'zar virüsü' },
-    boss: { family: 'eye', color: '#ff3d6e', name: 'KARA BALON' },
   },
   {
     // 4 — MİDE ASTARI: safra sarısı yanık doku, iyileşince canlı et pembesi.
@@ -114,9 +78,6 @@ const THEMES: TissueTheme[] = [
     healthyLight: '#e8836a',
     healthyEdge: '#ff9d7a',
     texture: 'acid',
-    drifter: { family: 'amoeba', color: '#ffd24a', name: 'asit amipi' },
-    hunter: { family: 'bacillus', color: '#c86bff', name: 'salgı kancası' },
-    boss: { family: 'maw', color: '#ff5533', name: 'MİDE SÜLÜĞÜ' },
   },
   {
     // 5 — KAN DOLAŞIMI: koyu pıhtı, iyileşince akan kan kırmızısı.
@@ -127,9 +88,6 @@ const THEMES: TissueTheme[] = [
     healthyLight: '#ec5a68',
     healthyEdge: '#ff7b86',
     texture: 'flow',
-    drifter: { family: 'coccus', color: '#ff9a3d', name: 'kan pıhtısı' },
-    hunter: { family: 'phage', color: '#9d6bff', name: 'akıntı virüsü' },
-    boss: { family: 'hydra', color: '#ff2f5e', name: 'DAMAR KRALI' },
   },
   {
     // 6 — LENF DÜĞÜMÜ: şişmiş gri-mavi, iyileşince berrak turkuaz.
@@ -140,9 +98,6 @@ const THEMES: TissueTheme[] = [
     healthyLight: '#5fd4bb',
     healthyEdge: '#8ff0dc',
     texture: 'lymph',
-    drifter: { family: 'jelly', color: '#6fe0ff', name: 'lenf denizanası' },
-    hunter: { family: 'crystal', color: '#c06bff', name: 'zırhlı virüs' },
-    boss: { family: 'eye', color: '#ff4b7a', name: 'ŞİŞMİŞ DÜĞÜM' },
   },
   {
     // 7 — KEMİK İLİĞİ: kurumuş süngerimsi doku, iyileşince ilik kırmızısı.
@@ -153,9 +108,6 @@ const THEMES: TissueTheme[] = [
     healthyLight: '#ef8070',
     healthyEdge: '#ffb08f',
     texture: 'marrow',
-    drifter: { family: 'spore', color: '#ffe066', name: 'spor kümesi' },
-    hunter: { family: 'bacillus', color: '#b06bff', name: 'delici basil' },
-    boss: { family: 'hydra', color: '#ff3d5e', name: 'FABRİKA KRALİÇESİ' },
   },
   {
     // 8 — KARACİĞER: yağlanmış lob dokusu, iyileşince koyu ciğer kırmızısı.
@@ -166,9 +118,6 @@ const THEMES: TissueTheme[] = [
     healthyLight: '#c9584a',
     healthyEdge: '#ff9b7a',
     texture: 'lobule',
-    drifter: { family: 'amoeba', color: '#c8e04b', name: 'safra amibi' },
-    hunter: { family: 'phage', color: '#a06bff', name: 'süzgeç virüsü' },
-    boss: { family: 'maw', color: '#ff4a3d', name: 'YAĞ DEVİ' },
   },
   {
     // 9 — BÖBREK: kristalleşmiş kanallar, iyileşince temiz doku.
@@ -179,9 +128,6 @@ const THEMES: TissueTheme[] = [
     healthyLight: '#d66277',
     healthyEdge: '#ffa0b0',
     texture: 'crystal',
-    drifter: { family: 'crystal', color: '#7fe0ff', name: 'tuz kristali' },
-    hunter: { family: 'worm', color: '#c06bff', name: 'kanal solucanı' },
-    boss: { family: 'eye', color: '#ff3d6e', name: 'TAŞ ÇEKİRDEK' },
   },
   {
     // 10 — KALP KAPAĞI: yırtılmış kas, iyileşince güçlü kırmızı.
@@ -192,9 +138,6 @@ const THEMES: TissueTheme[] = [
     healthyLight: '#f2607a',
     healthyEdge: '#ff8fa0',
     texture: 'muscle',
-    drifter: { family: 'coccus', color: '#ffb03d', name: 'kas yiyen' },
-    hunter: { family: 'phage', color: '#b06bff', name: 'ritim virüsü' },
-    boss: { family: 'hydra', color: '#ff2f4e', name: 'DÖRT AĞIZ' },
   },
   {
     // 11 — OMURİLİK: soğuk sinir hattı, iyileşince ışıyan miyelin.
@@ -205,9 +148,6 @@ const THEMES: TissueTheme[] = [
     healthyLight: '#9aa6e8',
     healthyEdge: '#dfe6ff',
     texture: 'nerve',
-    drifter: { family: 'worm', color: '#7fe0ff', name: 'sinir paraziti' },
-    hunter: { family: 'crystal', color: '#c86bff', name: 'aks virüsü' },
-    boss: { family: 'maw', color: '#ff4b6e', name: 'BEYAZ SOLUCAN' },
   },
   {
     // 12 — BEYİN SAPI: koloninin çekirdeği; iyileşince mor-eflatun ışık.
@@ -218,9 +158,6 @@ const THEMES: TissueTheme[] = [
     healthyLight: '#c294f2',
     healthyEdge: '#e0b3ff',
     texture: 'core',
-    drifter: { family: 'amoeba', color: '#8ff0dc', name: 'gölge hücre' },
-    hunter: { family: 'phage', color: '#ff8fd0', name: 'çekirdek virüsü' },
-    boss: { family: 'eye', color: '#ff2f5e', name: 'SİYAH KOLONİ' },
   },
 ];
 
@@ -233,9 +170,6 @@ const MUTATION: TissueTheme = {
   healthyLight: '#ef6f4a',
   healthyEdge: '#ffb36b',
   texture: 'core',
-  drifter: { family: 'amoeba', color: '#ffe066', name: 'mutant hücre' },
-  hunter: { family: 'crystal', color: '#c06bff', name: 'mutant virüs' },
-  boss: { family: 'hydra', color: '#ff3d3d', name: 'MUTASYON' },
 };
 
 /** Görev numarasından doku teması; kampanya sonrası mutasyon teması gelir. */
@@ -243,15 +177,4 @@ export function tissueTheme(index: number): TissueTheme {
   const n = Math.max(1, Math.floor(index));
   if (n > CAMPAIGN_LENGTH) return MUTATION;
   return THEMES[n - 1];
-}
-
-/** Bir düşman türünün o bölümdeki canavarı. */
-export function monsterFor(theme: TissueTheme, kind: EnemyKind): Monster {
-  return theme[kind];
-}
-
-/** Brifingde geçen kadro metni: "balgam solucanı, siliyer virüs, BOĞAZ TIKACI". */
-export function bestiaryLine(index: number): string {
-  const theme = tissueTheme(index);
-  return `${theme.drifter.name}, ${theme.hunter.name}, ${theme.boss.name}`;
 }

@@ -28,7 +28,7 @@ import {
 } from './gridImage';
 import { palette } from './palette';
 import { ShapeNodes } from './SkiaShapes';
-import { monsterFor, tissueTheme } from './tissues';
+import { tissueTheme } from './tissues';
 import type { TissueTheme } from './tissues';
 
 type Props = {
@@ -135,9 +135,7 @@ export const GameCanvas = memo(function GameCanvas({ game, cell, frame, loadout 
 
   // Dokunulmazken gemi yanıp söner; vurulduğunda patlama parıltısı çizilir.
   const blink = game.invulnerable > 0 && Math.floor(frame / 5) % 2 === 0;
-  const crew: Shape[] = game.enemies.flatMap((enemy) =>
-    enemyShapes(enemy, look, monsterFor(theme, enemy.kind))
-  );
+  const crew: Shape[] = game.enemies.flatMap((enemy) => enemyShapes(enemy, look));
   for (const shot of game.shots) crew.push(...shotShapes(shot));
   if (game.phase === 'dying') {
     crew.push({ kind: 'circle', x: look.x, y: look.y, r: 4, color: palette.danger, alpha: 0.55 });

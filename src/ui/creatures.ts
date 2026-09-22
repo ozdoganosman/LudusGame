@@ -6,8 +6,8 @@
 import { defaultLoadout } from '../engine/upgrades';
 import type { Loadout } from '../engine/upgrades';
 import type { Enemy, Shot } from '../engine/types';
+import { speciesVisual } from './bestiary';
 import { palette, shade } from './palette';
-import type { Monster } from './tissues';
 
 export type Point = { x: number; y: number };
 
@@ -83,7 +83,12 @@ function lookAt(from: Point, target?: Point): Point {
   return { x: dx / length, y: dy / length };
 }
 
-/** Kapsül gövde (basil): verilen yöne uzatılmış yuvarlak uçlu dörtgen. */
+/** Noktaları merkeze göre ölçekler (koyu kontur için). */
+function scalePoints(points: Point[], cx: number, cy: number, factor: number): Point[] {
+  return points.map((p) => ({ x: cx + (p.x - cx) * factor, y: cy + (p.y - cy) * factor }));
+}
+
+/** Kapsül gövde: verilen yöne uzatılmış yuvarlak uçlu dörtgen. */
 function capsule(cx: number, cy: number, length: number, radius: number, angle: number): Point[] {
   const points: Point[] = [];
   const steps = 7;
@@ -103,12 +108,12 @@ function capsule(cx: number, cy: number, length: number, radius: number, angle: 
   );
 }
 
-/** Köşeli kabuk (kristal): eşit olmayan yarıçaplı çokgen. */
+/** Köşeli kabuk: eşit olmayan yarıçaplı çokgen. */
 function shard(cx: number, cy: number, radius: number, sides: number, rotation: number): Point[] {
   const points: Point[] = [];
   for (let i = 0; i < sides; i++) {
     const angle = rotation + (i / sides) * TAU;
-    const r = radius * (0.7 + ((i * 37) % 11) / 22);
+    const r = radius * (0.65 + ((i * 37) % 11) / 18);
     points.push({ x: cx + Math.cos(angle) * r, y: cy + Math.sin(angle) * r });
   }
   return points;
@@ -123,7 +128,7 @@ function polygon(cx: number, cy: number, radius: number, sides: number, rotation
   return points;
 }
 
-/** İnce, uca doğru daralan kol (denizanası kolu, hidra boynu). */
+/** İnce, uca doğru daralan kol (kamçı, bacak, dokunaç). */
 function limb(
   cx: number,
   cy: number,
@@ -137,17 +142,17 @@ function limb(
   const right: Point[] = [];
   for (let i = 0; i <= steps; i++) {
     const t = i / steps;
-    const sway = Math.sin(wobble + t * 3) * length * 0.16;
+    const sway = Math.sin(wobble + t * 3) * length * 0.18;
     const px = cx + Math.cos(angle) * length * t - Math.sin(angle) * sway;
     const py = cy + Math.sin(angle) * length * t + Math.cos(angle) * sway;
-    const half = width * (1 - t * 0.75);
+    const half = width * (1 - t * 0.8);
     left.push({ x: px - Math.sin(angle) * half, y: py + Math.cos(angle) * half });
     right.push({ x: px + Math.sin(angle) * half, y: py - Math.cos(angle) * half });
   }
   return [...left, ...right.reverse()];
 }
 
-/** Diş sırası: gövdenin alt kenarına dizilmiş üçgenler. */
+/** Diş sırası. */
 function teeth(cx: number, cy: number, width: number, height: number, count: number): Shape[] {
   const shapes: Shape[] = [];
   const step = width / count;
@@ -166,259 +171,363 @@ function teeth(cx: number, cy: number, width: number, height: number, count: num
   return shapes;
 }
 
-/** Mikrop kümesi: iki küre, iri gözler, gülen ağız. */
-function coccusShapes(enemy: Enemy, r: number, color: string, look: Point): Shape[] {
-  return [
-    { kind: 'circle', x: enemy.x, y: enemy.y, r: r * 1.8, color, alpha: 0.16 },
-    { kind: 'poly', points: blob(enemy.x - r * 0.3, enemy.y + r * 0.25, r * 0.6, enemy.spin), color: shade(color, 0.25) },
-    { kind: 'poly', points: blob(enemy.x, enemy.y, r, enemy.spin), color },
-    {
-      kind: 'poly',
-      points: blob(enemy.x, enemy.y - r * 0.28, r * 0.6, enemy.spin + 1),
-      color: '#ffffff',
-      alpha: 0.16,
-    },
-    ...eye(enemy.x - r * 0.34, enemy.y - r * 0.12, r * 0.34, look),
-    ...eye(enemy.x + r * 0.34, enemy.y - r * 0.12, r * 0.34, look),
-    { kind: 'poly', points: mouth(enemy.x, enemy.y + r * 0.42, r * 0.7, r * 0.3), color: shade(color, 0.6) },
-  ];
-}
-
-/** Basil: çubuk gövde, kamçı kuyruk, tek göz. */
-function bacillusShapes(enemy: Enemy, r: number, color: string, look: Point, heading: number): Shape[] {
-  const tail = limb(
-    enemy.x - Math.cos(heading) * r * 0.9,
-    enemy.y - Math.sin(heading) * r * 0.9,
-    heading + Math.PI,
-    r * 1.5,
-    r * 0.14,
-    enemy.spin * 3
-  );
-  const head = { x: enemy.x + Math.cos(heading) * r * 0.45, y: enemy.y + Math.sin(heading) * r * 0.45 };
-
-  return [
-    { kind: 'circle', x: enemy.x, y: enemy.y, r: r * 1.7, color, alpha: 0.14 },
-    { kind: 'poly', points: tail, color: shade(color, 0.35) },
-    { kind: 'poly', points: capsule(enemy.x, enemy.y, r * 1.7, r * 0.62, heading), color },
-    {
-      kind: 'poly',
-      points: capsule(enemy.x, enemy.y - r * 0.18, r * 1.2, r * 0.22, heading),
-      color: '#ffffff',
-      alpha: 0.18,
-    },
-    ...eye(head.x, head.y, r * 0.38, look),
-  ];
-}
-
-/** Solucan: eklemli gövde, dişli baş. Gövde gittiği yönün arkasına dizilir. */
-function wormShapes(enemy: Enemy, r: number, color: string, look: Point, heading: number): Shape[] {
-  const shapes: Shape[] = [
-    { kind: 'circle', x: enemy.x, y: enemy.y, r: r * 1.9, color, alpha: 0.14 },
-  ];
-  const segments = 5;
-  for (let i = segments; i >= 1; i--) {
-    const t = i / segments;
-    const sway = Math.sin(enemy.spin * 2 - i * 0.9) * r * 0.45;
-    const x = enemy.x - Math.cos(heading) * r * 1.05 * i - Math.sin(heading) * sway;
-    const y = enemy.y - Math.sin(heading) * r * 1.05 * i + Math.cos(heading) * sway;
-    shapes.push({
-      kind: 'poly',
-      points: blob(x, y, r * (0.75 - t * 0.28), enemy.spin + i, 0.16, 12),
-      color: i % 2 === 0 ? shade(color, 0.3) : shade(color, 0.15),
-    });
-  }
-  shapes.push(
-    { kind: 'poly', points: blob(enemy.x, enemy.y, r * 0.85, enemy.spin, 0.1, 16), color },
-    ...eye(enemy.x - r * 0.26, enemy.y - r * 0.18, r * 0.28, look),
-    ...eye(enemy.x + r * 0.26, enemy.y - r * 0.18, r * 0.28, look),
-    ...teeth(enemy.x, enemy.y + r * 0.42, r * 1.1, r * 0.34, 4)
-  );
-  return shapes;
-}
-
-/** Spor: dikenli kabuk, dikiş çizgisi, tek göz. */
-function sporeShapes(enemy: Enemy, r: number, color: string, look: Point): Shape[] {
-  return [
-    { kind: 'circle', x: enemy.x, y: enemy.y, r: r * 2, color, alpha: 0.15 },
-    {
-      kind: 'poly',
-      points: spikes(enemy.x, enemy.y, r * 0.86, 10, r * 0.5, enemy.spin),
-      color: shade(color, 0.3),
-    },
-    { kind: 'circle', x: enemy.x, y: enemy.y, r: r * 0.86, color },
-    {
-      kind: 'poly',
-      points: [
-        { x: enemy.x - r * 0.8, y: enemy.y - r * 0.1 },
-        { x: enemy.x + r * 0.8, y: enemy.y - r * 0.1 },
-        { x: enemy.x + r * 0.8, y: enemy.y + r * 0.06 },
-        { x: enemy.x - r * 0.8, y: enemy.y + r * 0.06 },
-      ],
-      color: shade(color, 0.5),
-    },
-    ...eye(enemy.x, enemy.y - r * 0.3, r * 0.34, look),
-  ];
-}
-
-/** Denizanası: çan gövde, sallanan kollar. */
-function jellyShapes(enemy: Enemy, r: number, color: string, look: Point): Shape[] {
-  const shapes: Shape[] = [
-    { kind: 'circle', x: enemy.x, y: enemy.y, r: r * 2, color, alpha: 0.18 },
-  ];
+/** Salkım: küçük kürelerden oluşan küme (stafilokok). */
+function clusterShapes(enemy: Enemy, r: number, color: string, look: Point): Shape[] {
+  const shapes: Shape[] = [];
+  const dark = shade(color, 0.55);
+  const balls: Point[] = [{ x: 0, y: 0 }];
   for (let i = 0; i < 4; i++) {
-    const angle = Math.PI / 2 + (i - 1.5) * 0.36;
+    const angle = enemy.spin * 0.4 + (i / 4) * TAU;
+    balls.push({ x: Math.cos(angle) * r * 0.72, y: Math.sin(angle) * r * 0.72 });
+  }
+
+  for (const ball of balls) {
     shapes.push({
-      kind: 'poly',
-      points: limb(enemy.x, enemy.y + r * 0.3, angle, r * 1.6, r * 0.16, enemy.spin * 2 + i),
-      color: shade(color, 0.3),
-      alpha: 0.85,
+      kind: 'circle',
+      x: enemy.x + ball.x,
+      y: enemy.y + ball.y,
+      r: r * 0.72,
+      color: dark,
+    });
+  }
+  for (const ball of balls) {
+    shapes.push({
+      kind: 'circle',
+      x: enemy.x + ball.x,
+      y: enemy.y + ball.y,
+      r: r * 0.58,
+      color,
     });
   }
   shapes.push(
-    {
-      kind: 'poly',
-      points: [
-        ...polygon(enemy.x, enemy.y - r * 0.1, r * 0.95, 14, Math.PI).filter((p) => p.y <= enemy.y + r * 0.2),
-        { x: enemy.x + r * 0.95, y: enemy.y + r * 0.25 },
-        { x: enemy.x - r * 0.95, y: enemy.y + r * 0.25 },
-      ],
-      color,
-      alpha: 0.9,
-    },
-    {
-      kind: 'circle',
-      x: enemy.x - r * 0.25,
-      y: enemy.y - r * 0.4,
-      r: r * 0.3,
-      color: '#ffffff',
-      alpha: 0.25,
-    },
-    ...eye(enemy.x - r * 0.3, enemy.y - r * 0.1, r * 0.26, look),
-    ...eye(enemy.x + r * 0.3, enemy.y - r * 0.1, r * 0.26, look)
+    ...eye(enemy.x - r * 0.18, enemy.y - r * 0.1, r * 0.2, look),
+    ...eye(enemy.x + r * 0.18, enemy.y - r * 0.1, r * 0.2, look)
   );
   return shapes;
 }
 
-/** Kristal virüs: köşeli kabuk, yansıma, yarık göz. */
-function crystalShapes(enemy: Enemy, r: number, color: string, look: Point): Shape[] {
-  return [
-    { kind: 'circle', x: enemy.x, y: enemy.y, r: r * 1.9, color, alpha: 0.16 },
-    { kind: 'poly', points: shard(enemy.x, enemy.y, r * 1.15, 7, enemy.spin * 0.4), color: shade(color, 0.45) },
-    { kind: 'poly', points: shard(enemy.x, enemy.y, r * 0.85, 6, -enemy.spin * 0.3), color },
-    {
-      kind: 'poly',
-      points: [
-        { x: enemy.x - r * 0.3, y: enemy.y - r * 0.6 },
-        { x: enemy.x + r * 0.15, y: enemy.y - r * 0.2 },
-        { x: enemy.x - r * 0.1, y: enemy.y + r * 0.1 },
-        { x: enemy.x - r * 0.5, y: enemy.y - r * 0.2 },
-      ],
-      color: '#ffffff',
-      alpha: 0.28,
-    },
-    ...eye(enemy.x, enemy.y + r * 0.1, r * 0.3, look),
-  ];
-}
+/** Çubuk basil: uzun ince gövde, arkada kamçılar, tek göz. */
+function rodShapes(enemy: Enemy, r: number, color: string, look: Point, heading: number): Shape[] {
+  const shapes: Shape[] = [];
+  const back = { x: enemy.x - Math.cos(heading) * r * 1.25, y: enemy.y - Math.sin(heading) * r * 1.25 };
 
-/** Faj: altıgen baş, boyun ve bacaklar. */
-function phageShapes(enemy: Enemy, r: number, color: string, look: Point, heading: number): Shape[] {
-  const shapes: Shape[] = [
-    { kind: 'circle', x: enemy.x, y: enemy.y, r: r * 1.9, color, alpha: 0.16 },
-  ];
-  for (let i = 0; i < 3; i++) {
-    const angle = heading + Math.PI + (i - 1) * 0.5;
+  for (const offset of [-0.35, 0, 0.35]) {
     shapes.push({
       kind: 'poly',
-      points: limb(enemy.x, enemy.y, angle, r * 1.3, r * 0.13, enemy.spin + i * 2),
-      color: shade(color, 0.4),
+      points: limb(back.x, back.y, heading + Math.PI + offset, r * 1.5, r * 0.12, enemy.spin * 4),
+      color: shade(color, 0.3),
     });
   }
   shapes.push(
+    { kind: 'poly', points: capsule(enemy.x, enemy.y, r * 2.5, r * 0.52, heading), color: shade(color, 0.5) },
+    { kind: 'poly', points: capsule(enemy.x, enemy.y, r * 2.3, r * 0.4, heading), color },
     {
       kind: 'poly',
-      points: capsule(enemy.x, enemy.y, r * 0.5, r * 0.3, heading),
-      color: shade(color, 0.25),
-    },
-    {
-      kind: 'poly',
-      points: polygon(
-        enemy.x + Math.cos(heading) * r * 0.35,
-        enemy.y + Math.sin(heading) * r * 0.35,
-        r * 0.8,
-        6,
-        heading
-      ),
-      color,
+      points: capsule(enemy.x, enemy.y, r * 1.5, r * 0.14, heading),
+      color: '#ffffff',
+      alpha: 0.2,
     },
     ...eye(
-      enemy.x + Math.cos(heading) * r * 0.35,
-      enemy.y + Math.sin(heading) * r * 0.35,
-      r * 0.36,
+      enemy.x + Math.cos(heading) * r * 0.9,
+      enemy.y + Math.sin(heading) * r * 0.9,
+      r * 0.3,
       look
     )
   );
   return shapes;
 }
 
-/** Amip: düzensiz gövde, yalancı ayaklar, çekirdek. */
-function amoebaShapes(enemy: Enemy, r: number, color: string, look: Point): Shape[] {
+/** Spiral: helezon gövde, dışta baş. */
+function coilShapes(enemy: Enemy, r: number, color: string, look: Point): Shape[] {
+  const shapes: Shape[] = [];
+  const turns = 7;
+  for (let i = turns; i >= 0; i--) {
+    const t = i / turns;
+    const angle = enemy.spin * 0.8 + t * TAU * 1.25;
+    const radius = r * 1.3 * t;
+    const x = enemy.x + Math.cos(angle) * radius;
+    const y = enemy.y + Math.sin(angle) * radius;
+    shapes.push({ kind: 'circle', x, y, r: r * (0.52 - t * 0.14), color: shade(color, 0.55) });
+    shapes.push({ kind: 'circle', x, y, r: r * (0.4 - t * 0.1), color });
+  }
+  const headAngle = enemy.spin * 0.8 + TAU * 1.25;
+  const head = { x: enemy.x + Math.cos(headAngle) * r * 1.3, y: enemy.y + Math.sin(headAngle) * r * 1.3 };
+  shapes.push(
+    { kind: 'circle', x: head.x, y: head.y, r: r * 0.56, color: shade(color, 0.55) },
+    { kind: 'circle', x: head.x, y: head.y, r: r * 0.46, color: shade(color, 0.2) },
+    ...eye(head.x - r * 0.16, head.y, r * 0.2, look),
+    ...eye(head.x + r * 0.16, head.y, r * 0.2, look)
+  );
+  return shapes;
+}
+
+/** Eklemli solucan: gövde gittiği yönün arkasına dizilir, baş dişli. */
+function wormShapes(enemy: Enemy, r: number, color: string, look: Point, heading: number): Shape[] {
+  const shapes: Shape[] = [];
+  const segments = 6;
+  for (let i = segments; i >= 1; i--) {
+    const sway = Math.sin(enemy.spin * 2 - i * 0.9) * r * 0.5;
+    const x = enemy.x - Math.cos(heading) * r * 0.95 * i - Math.sin(heading) * sway;
+    const y = enemy.y - Math.sin(heading) * r * 0.95 * i + Math.cos(heading) * sway;
+    const size = r * (0.8 - i * 0.07);
+    shapes.push({ kind: 'circle', x, y, r: size * 1.2, color: shade(color, 0.6) });
+    shapes.push({ kind: 'circle', x, y, r: size, color: i % 2 === 0 ? shade(color, 0.3) : color });
+  }
+  shapes.push(
+    { kind: 'circle', x: enemy.x, y: enemy.y, r: r * 1.05, color: shade(color, 0.6) },
+    { kind: 'poly', points: blob(enemy.x, enemy.y, r * 0.9, enemy.spin, 0.1, 14), color },
+    ...eye(enemy.x - r * 0.28, enemy.y - r * 0.2, r * 0.26, look),
+    ...eye(enemy.x + r * 0.28, enemy.y - r * 0.2, r * 0.26, look),
+    ...teeth(enemy.x, enemy.y + r * 0.45, r * 1.1, r * 0.35, 4)
+  );
+  return shapes;
+}
+
+/** Dikenli yıldız: keskin uçlu, gözsüz, soğuk. */
+function starShapes(enemy: Enemy, r: number, color: string): Shape[] {
+  const points = spikes(enemy.x, enemy.y, r * 0.55, 7, r * 1.15, enemy.spin * 0.7);
   return [
-    { kind: 'circle', x: enemy.x, y: enemy.y, r: r * 1.9, color, alpha: 0.15 },
-    { kind: 'poly', points: blob(enemy.x, enemy.y, r * 1.05, enemy.spin, 0.3, 14), color, alpha: 0.85 },
-    { kind: 'poly', points: blob(enemy.x, enemy.y, r * 0.7, enemy.spin + 2, 0.22, 12), color: shade(color, 0.2) },
-    {
-      kind: 'circle',
-      x: enemy.x + r * 0.2,
-      y: enemy.y + r * 0.25,
-      r: r * 0.26,
-      color: shade(color, 0.55),
-    },
-    ...eye(enemy.x - r * 0.3, enemy.y - r * 0.22, r * 0.3, look),
-    ...eye(enemy.x + r * 0.32, enemy.y - r * 0.3, r * 0.24, look),
+    { kind: 'circle', x: enemy.x, y: enemy.y, r: r * 1.7, color, alpha: 0.14 },
+    { kind: 'poly', points: scalePoints(points, enemy.x, enemy.y, 1.12), color: shade(color, 0.6) },
+    { kind: 'poly', points, color },
+    { kind: 'circle', x: enemy.x, y: enemy.y, r: r * 0.4, color: shade(color, 0.45) },
+    { kind: 'circle', x: enemy.x, y: enemy.y, r: r * 0.2, color: '#ffffff', alpha: 0.85 },
   ];
 }
 
-/** Patron: nabız gibi atan gövde, dişli ağız, öfkeli kaşlar. */
+/** Halka: ortası boş, çeperinde kabarcıklar. */
+function ringShapes(enemy: Enemy, r: number, color: string): Shape[] {
+  const shapes: Shape[] = [
+    { kind: 'circle', x: enemy.x, y: enemy.y, r: r * 1.6, color, alpha: 0.12 },
+  ];
+  const beads = 11;
+  for (let i = 0; i < beads; i++) {
+    const angle = enemy.spin * 0.6 + (i / beads) * TAU;
+    const x = enemy.x + Math.cos(angle) * r * 0.85;
+    const y = enemy.y + Math.sin(angle) * r * 0.85;
+    shapes.push({ kind: 'circle', x, y, r: r * 0.36, color: shade(color, 0.5) });
+    shapes.push({ kind: 'circle', x, y, r: r * 0.27, color });
+  }
+  const pulse = 0.18 + Math.abs(Math.sin(enemy.spin * 2)) * 0.12;
+  shapes.push({ kind: 'circle', x: enemy.x, y: enemy.y, r: r * pulse, color: '#ffffff', alpha: 0.8 });
+  return shapes;
+}
+
+/** Mızrak: gittiği yöne bakan keskin üçgen, geriye kıvrık kancalar. */
+function dartShapes(enemy: Enemy, r: number, color: string, look: Point, heading: number): Shape[] {
+  const body: Point[] = rotate(
+    [
+      { x: enemy.x + r * 1.5, y: enemy.y },
+      { x: enemy.x - r * 0.7, y: enemy.y - r * 0.85 },
+      { x: enemy.x - r * 0.2, y: enemy.y },
+      { x: enemy.x - r * 0.7, y: enemy.y + r * 0.85 },
+    ],
+    heading,
+    enemy.x,
+    enemy.y
+  );
+  const nose = rotate([{ x: enemy.x + r * 0.75, y: enemy.y }], heading, enemy.x, enemy.y)[0];
+
+  return [
+    { kind: 'poly', points: scalePoints(body, enemy.x, enemy.y, 1.15), color: shade(color, 0.6) },
+    { kind: 'poly', points: body, color },
+    {
+      kind: 'poly',
+      points: rotate(
+        [
+          { x: enemy.x + r * 1.5, y: enemy.y },
+          { x: enemy.x - r * 0.2, y: enemy.y },
+          { x: enemy.x - r * 0.7, y: enemy.y - r * 0.85 },
+        ],
+        heading,
+        enemy.x,
+        enemy.y
+      ),
+      color: '#ffffff',
+      alpha: 0.18,
+    },
+    ...eye(nose.x, nose.y, r * 0.3, look),
+  ];
+}
+
+/** Çarpı: dört kollu, dönen, ortasında küçük göz. */
+function crossShapes(enemy: Enemy, r: number, color: string, look: Point): Shape[] {
+  const shapes: Shape[] = [];
+  for (let i = 0; i < 4; i++) {
+    const angle = enemy.spin * 1.1 + (i / 4) * TAU;
+    const arm = limb(enemy.x, enemy.y, angle, r * 1.5, r * 0.4, 0);
+    shapes.push({ kind: 'poly', points: scalePoints(arm, enemy.x, enemy.y, 1.12), color: shade(color, 0.6) });
+    shapes.push({ kind: 'poly', points: arm, color });
+  }
+  shapes.push(
+    { kind: 'circle', x: enemy.x, y: enemy.y, r: r * 0.48, color: shade(color, 0.35) },
+    ...eye(enemy.x, enemy.y, r * 0.26, look)
+  );
+  return shapes;
+}
+
+/** Denizanası: saydam çan, uzun kollar. */
+function jellyShapes(enemy: Enemy, r: number, color: string, look: Point): Shape[] {
+  const shapes: Shape[] = [
+    { kind: 'circle', x: enemy.x, y: enemy.y, r: r * 1.8, color, alpha: 0.16 },
+  ];
+  for (let i = 0; i < 5; i++) {
+    const angle = Math.PI / 2 + (i - 2) * 0.3;
+    shapes.push({
+      kind: 'poly',
+      points: limb(enemy.x, enemy.y + r * 0.2, angle, r * 1.9, r * 0.14, enemy.spin * 2.5 + i),
+      color: shade(color, 0.25),
+      alpha: 0.8,
+    });
+  }
+  const bell = polygon(enemy.x, enemy.y - r * 0.05, r * 0.95, 16, Math.PI).filter(
+    (p) => p.y <= enemy.y + r * 0.25
+  );
+  shapes.push(
+    {
+      kind: 'poly',
+      points: [...bell, { x: enemy.x + r * 0.9, y: enemy.y + r * 0.3 }, { x: enemy.x - r * 0.9, y: enemy.y + r * 0.3 }],
+      color: shade(color, 0.45),
+    },
+    {
+      kind: 'poly',
+      points: [
+        ...scalePoints(bell, enemy.x, enemy.y, 0.88),
+        { x: enemy.x + r * 0.78, y: enemy.y + r * 0.22 },
+        { x: enemy.x - r * 0.78, y: enemy.y + r * 0.22 },
+      ],
+      color,
+      alpha: 0.92,
+    },
+    { kind: 'circle', x: enemy.x - r * 0.28, y: enemy.y - r * 0.42, r: r * 0.26, color: '#ffffff', alpha: 0.3 },
+    ...eye(enemy.x - r * 0.3, enemy.y - r * 0.05, r * 0.22, look),
+    ...eye(enemy.x + r * 0.3, enemy.y - r * 0.05, r * 0.22, look)
+  );
+  return shapes;
+}
+
+/** Kristal: üst üste binmiş köşeli kabuklar, gözsüz. */
+function crystalShapes(enemy: Enemy, r: number, color: string): Shape[] {
+  return [
+    { kind: 'circle', x: enemy.x, y: enemy.y, r: r * 1.6, color, alpha: 0.14 },
+    {
+      kind: 'poly',
+      points: spikes(enemy.x, enemy.y, r * 0.9, 5, r * 0.85, enemy.spin * 0.3),
+      color: shade(color, 0.5),
+    },
+    {
+      kind: 'poly',
+      points: shard(enemy.x, enemy.y, r * 1.35, 5, enemy.spin * 0.3),
+      color: shade(color, 0.62),
+    },
+    { kind: 'poly', points: shard(enemy.x, enemy.y, r * 1.05, 6, -enemy.spin * 0.25), color },
+    {
+      kind: 'poly',
+      points: shard(enemy.x - r * 0.15, enemy.y - r * 0.15, r * 0.55, 5, enemy.spin * 0.5),
+      color: '#ffffff',
+      alpha: 0.35,
+    },
+    {
+      kind: 'poly',
+      points: [
+        { x: enemy.x - r * 0.1, y: enemy.y - r * 0.75 },
+        { x: enemy.x + r * 0.28, y: enemy.y - r * 0.1 },
+        { x: enemy.x - r * 0.02, y: enemy.y + r * 0.2 },
+        { x: enemy.x - r * 0.38, y: enemy.y - r * 0.2 },
+      ],
+      color: '#ffffff',
+      alpha: 0.22,
+    },
+  ];
+}
+
+/** Faj: altıgen baş, boyun ve uzun ince bacaklar. */
+function phageShapes(enemy: Enemy, r: number, color: string, look: Point, heading: number): Shape[] {
+  const shapes: Shape[] = [];
+  const head = {
+    x: enemy.x + Math.cos(heading) * r * 0.45,
+    y: enemy.y + Math.sin(heading) * r * 0.45,
+  };
+
+  for (let i = 0; i < 4; i++) {
+    const angle = heading + Math.PI + (i - 1.5) * 0.42;
+    shapes.push({
+      kind: 'poly',
+      points: limb(enemy.x, enemy.y, angle, r * 1.7, r * 0.1, enemy.spin * 3 + i * 2),
+      color: shade(color, 0.4),
+    });
+  }
+  shapes.push(
+    { kind: 'poly', points: capsule(enemy.x, enemy.y, r * 0.7, r * 0.22, heading), color: shade(color, 0.3) },
+    {
+      kind: 'poly',
+      points: scalePoints(polygon(head.x, head.y, r * 0.85, 6, heading), head.x, head.y, 1.15),
+      color: shade(color, 0.6),
+    },
+    { kind: 'poly', points: polygon(head.x, head.y, r * 0.85, 6, heading), color },
+    ...eye(head.x, head.y, r * 0.34, look)
+  );
+  return shapes;
+}
+
+/** Amip: düzensiz gövde, yalancı ayaklar, çekirdek. */
+function amoebaShapes(enemy: Enemy, r: number, color: string, look: Point): Shape[] {
+  const shapes: Shape[] = [
+    { kind: 'circle', x: enemy.x, y: enemy.y, r: r * 1.7, color, alpha: 0.13 },
+  ];
+  for (let i = 0; i < 3; i++) {
+    const angle = enemy.spin * 0.5 + (i / 3) * TAU;
+    shapes.push({
+      kind: 'poly',
+      points: limb(enemy.x, enemy.y, angle, r * 1.75, r * 0.46, enemy.spin + i),
+      color: shade(color, 0.25),
+      alpha: 0.95,
+    });
+  }
+  shapes.push(
+    { kind: 'poly', points: blob(enemy.x, enemy.y, r * 0.95, enemy.spin, 0.28, 16), color },
+    { kind: 'poly', points: blob(enemy.x, enemy.y, r * 0.5, enemy.spin + 2, 0.2, 12), color: shade(color, 0.4) },
+    ...eye(enemy.x - r * 0.28, enemy.y - r * 0.2, r * 0.26, look),
+    ...eye(enemy.x + r * 0.3, enemy.y - r * 0.28, r * 0.2, look)
+  );
+  return shapes;
+}
+
+/** Patron: dişli ağız, dikenli çeper, öfkeli gözler. */
 function mawShapes(enemy: Enemy, r: number, color: string, look: Point): Shape[] {
   const pulse = 1 + Math.sin(enemy.spin * 1.6) * 0.07;
   return [
-    { kind: 'circle', x: enemy.x, y: enemy.y, r: r * 2.1 * pulse, color, alpha: 0.2 },
+    { kind: 'circle', x: enemy.x, y: enemy.y, r: r * 2 * pulse, color, alpha: 0.2 },
     {
       kind: 'poly',
       points: spikes(enemy.x, enemy.y, r * 0.92, 12, r * 0.4 * pulse, -enemy.spin * 0.6),
-      color: shade(color, 0.35),
+      color: shade(color, 0.45),
     },
     { kind: 'poly', points: blob(enemy.x, enemy.y, r * 0.95, enemy.spin, 0.07, 22), color },
-    {
-      kind: 'poly',
-      points: blob(enemy.x, enemy.y - r * 0.3, r * 0.5, enemy.spin + 2, 0.08),
-      color: '#ffffff',
-      alpha: 0.12,
-    },
-    ...eye(enemy.x - r * 0.36, enemy.y - r * 0.12, r * 0.3, look),
-    ...eye(enemy.x + r * 0.36, enemy.y - r * 0.12, r * 0.3, look),
+    ...eye(enemy.x - r * 0.36, enemy.y - r * 0.2, r * 0.3, look),
+    ...eye(enemy.x + r * 0.36, enemy.y - r * 0.2, r * 0.3, look),
     {
       kind: 'poly',
       points: [
-        { x: enemy.x - r * 0.62, y: enemy.y - r * 0.55 },
-        { x: enemy.x - r * 0.12, y: enemy.y - r * 0.3 },
-        { x: enemy.x - r * 0.12, y: enemy.y - r * 0.12 },
-        { x: enemy.x - r * 0.62, y: enemy.y - r * 0.34 },
+        { x: enemy.x - r * 0.62, y: enemy.y - r * 0.62 },
+        { x: enemy.x - r * 0.12, y: enemy.y - r * 0.38 },
+        { x: enemy.x - r * 0.12, y: enemy.y - r * 0.2 },
+        { x: enemy.x - r * 0.62, y: enemy.y - r * 0.42 },
       ],
-      color: shade(color, 0.55),
+      color: shade(color, 0.6),
     },
     {
       kind: 'poly',
       points: [
-        { x: enemy.x + r * 0.62, y: enemy.y - r * 0.55 },
-        { x: enemy.x + r * 0.12, y: enemy.y - r * 0.3 },
-        { x: enemy.x + r * 0.12, y: enemy.y - r * 0.12 },
-        { x: enemy.x + r * 0.62, y: enemy.y - r * 0.34 },
+        { x: enemy.x + r * 0.62, y: enemy.y - r * 0.62 },
+        { x: enemy.x + r * 0.12, y: enemy.y - r * 0.38 },
+        { x: enemy.x + r * 0.12, y: enemy.y - r * 0.2 },
+        { x: enemy.x + r * 0.62, y: enemy.y - r * 0.42 },
       ],
-      color: shade(color, 0.55),
+      color: shade(color, 0.6),
     },
-    { kind: 'poly', points: mouth(enemy.x, enemy.y + r * 0.4, r * 0.85, r * 0.34), color: '#2a0713' },
-    ...teeth(enemy.x, enemy.y + r * 0.42, r * 0.7, r * 0.28, 3),
+    { kind: 'poly', points: mouth(enemy.x, enemy.y + r * 0.3, r * 1.1, r * 0.42), color: '#2a0713' },
+    ...teeth(enemy.x, enemy.y + r * 0.32, r * 0.95, r * 0.3, 5),
   ];
 }
 
@@ -426,11 +535,11 @@ function mawShapes(enemy: Enemy, r: number, color: string, look: Point): Shape[]
 function eyeBossShapes(enemy: Enemy, r: number, color: string, look: Point): Shape[] {
   const pulse = 1 + Math.sin(enemy.spin * 1.4) * 0.06;
   return [
-    { kind: 'circle', x: enemy.x, y: enemy.y, r: r * 2.2 * pulse, color, alpha: 0.2 },
+    { kind: 'circle', x: enemy.x, y: enemy.y, r: r * 2.1 * pulse, color, alpha: 0.2 },
     {
       kind: 'poly',
-      points: spikes(enemy.x, enemy.y, r * 1, 14, r * 0.55 * pulse, enemy.spin * 0.5),
-      color: shade(color, 0.3),
+      points: spikes(enemy.x, enemy.y, r * 1, 16, r * 0.6 * pulse, enemy.spin * 0.5),
+      color: shade(color, 0.4),
     },
     { kind: 'circle', x: enemy.x, y: enemy.y, r: r * 0.98, color },
     { kind: 'circle', x: enemy.x, y: enemy.y, r: r * 0.78, color: '#ffffff' },
@@ -448,71 +557,98 @@ function eyeBossShapes(enemy: Enemy, r: number, color: string, look: Point): Sha
       r: r * 0.24,
       color: '#140c22',
     },
-    {
-      kind: 'circle',
-      x: enemy.x - r * 0.3,
-      y: enemy.y - r * 0.34,
-      r: r * 0.16,
-      color: '#ffffff',
-      alpha: 0.9,
-    },
+    { kind: 'circle', x: enemy.x - r * 0.3, y: enemy.y - r * 0.34, r: r * 0.16, color: '#ffffff', alpha: 0.9 },
   ];
 }
 
-/** Patron: üç başlı gövde; başlar gemiye döner. */
+/** Patron: üç başlı; başlar gemiye döner. */
 function hydraShapes(enemy: Enemy, r: number, color: string, look: Point): Shape[] {
   const shapes: Shape[] = [
-    { kind: 'circle', x: enemy.x, y: enemy.y, r: r * 2.2, color, alpha: 0.2 },
+    { kind: 'circle', x: enemy.x, y: enemy.y, r: r * 2.1, color, alpha: 0.2 },
   ];
   const base = Math.atan2(look.y, look.x);
   for (let i = 0; i < 3; i++) {
-    const angle = base + (i - 1) * 0.85 + Math.sin(enemy.spin + i) * 0.12;
-    const length = r * 1.35;
+    const angle = base + (i - 1) * 0.85 + Math.sin(enemy.spin + i) * 0.14;
+    const length = r * 1.4;
     shapes.push({
       kind: 'poly',
-      points: limb(enemy.x, enemy.y, angle, length, r * 0.28, enemy.spin * 2 + i),
-      color: shade(color, 0.35),
+      points: limb(enemy.x, enemy.y, angle, length, r * 0.3, enemy.spin * 2 + i),
+      color: shade(color, 0.45),
     });
     const hx = enemy.x + Math.cos(angle) * length;
     const hy = enemy.y + Math.sin(angle) * length;
     shapes.push(
+      { kind: 'circle', x: hx, y: hy, r: r * 0.52, color: shade(color, 0.6) },
       { kind: 'poly', points: blob(hx, hy, r * 0.44, enemy.spin + i, 0.12, 12), color },
       ...eye(hx, hy, r * 0.2, look)
     );
   }
   shapes.push(
     { kind: 'poly', points: blob(enemy.x, enemy.y, r * 0.9, enemy.spin, 0.1, 20), color },
-    {
-      kind: 'poly',
-      points: blob(enemy.x, enemy.y - r * 0.25, r * 0.45, enemy.spin + 3, 0.1),
-      color: '#ffffff',
-      alpha: 0.12,
-    },
     ...teeth(enemy.x, enemy.y + r * 0.3, r * 0.9, r * 0.3, 4)
   );
   return shapes;
 }
 
-/** O bölümün canavarı: aile ve renk tema dosyasından gelir. */
-export function enemyShapes(enemy: Enemy, target: Point | undefined, monster: Monster): Shape[] {
+/** Patron: dikenli taç — makine gibi, gözsüz, ortasında parlayan çekirdek. */
+function crownShapes(enemy: Enemy, r: number, color: string): Shape[] {
+  const shapes: Shape[] = [
+    { kind: 'circle', x: enemy.x, y: enemy.y, r: r * 2.1, color, alpha: 0.18 },
+  ];
+  for (let i = 0; i < 6; i++) {
+    const angle = enemy.spin * 0.5 + (i / 6) * TAU;
+    const spike = [
+      { x: enemy.x + Math.cos(angle) * r * 1.9, y: enemy.y + Math.sin(angle) * r * 1.9 },
+      {
+        x: enemy.x + Math.cos(angle + 0.32) * r * 0.75,
+        y: enemy.y + Math.sin(angle + 0.32) * r * 0.75,
+      },
+      {
+        x: enemy.x + Math.cos(angle - 0.32) * r * 0.75,
+        y: enemy.y + Math.sin(angle - 0.32) * r * 0.75,
+      },
+    ];
+    shapes.push({ kind: 'poly', points: scalePoints(spike, enemy.x, enemy.y, 1.08), color: shade(color, 0.65) });
+    shapes.push({ kind: 'poly', points: spike, color: shade(color, 0.25) });
+  }
+  const glow = 0.5 + Math.abs(Math.sin(enemy.spin * 2)) * 0.18;
+  shapes.push(
+    { kind: 'poly', points: polygon(enemy.x, enemy.y, r * 0.95, 8, enemy.spin * 0.5), color: shade(color, 0.5) },
+    { kind: 'poly', points: polygon(enemy.x, enemy.y, r * 0.72, 8, -enemy.spin * 0.4), color },
+    { kind: 'circle', x: enemy.x, y: enemy.y, r: r * glow * 0.6, color: '#ffffff', alpha: 0.85 }
+  );
+  return shapes;
+}
+
+/** O bölümün canavarı: tür kimliğinden aile, renk ve ad gelir. */
+export function enemyShapes(enemy: Enemy, target?: Point): Shape[] {
+  const monster = speciesVisual(enemy.species);
   const r = enemy.radius;
   const look = lookAt({ x: enemy.x, y: enemy.y }, target);
-  const heading = Math.atan2(enemy.vy, enemy.vx);
+  const heading = enemy.heading;
   const color = monster.color;
 
   switch (monster.family) {
-    case 'coccus':
-      return coccusShapes(enemy, r, color, look);
-    case 'bacillus':
-      return bacillusShapes(enemy, r, color, look, heading);
+    case 'cluster':
+      return clusterShapes(enemy, r, color, look);
+    case 'rod':
+      return rodShapes(enemy, r, color, look, heading);
+    case 'coil':
+      return coilShapes(enemy, r, color, look);
     case 'worm':
       return wormShapes(enemy, r, color, look, heading);
-    case 'spore':
-      return sporeShapes(enemy, r, color, look);
+    case 'star':
+      return starShapes(enemy, r, color);
+    case 'ring':
+      return ringShapes(enemy, r, color);
+    case 'dart':
+      return dartShapes(enemy, r, color, look, heading);
+    case 'cross':
+      return crossShapes(enemy, r, color, look);
     case 'jelly':
       return jellyShapes(enemy, r, color, look);
     case 'crystal':
-      return crystalShapes(enemy, r, color, look);
+      return crystalShapes(enemy, r, color);
     case 'phage':
       return phageShapes(enemy, r, color, look, heading);
     case 'amoeba':
@@ -523,6 +659,8 @@ export function enemyShapes(enemy: Enemy, target: Point | undefined, monster: Mo
       return eyeBossShapes(enemy, r, color, look);
     case 'hydra':
       return hydraShapes(enemy, r, color, look);
+    case 'crown':
+      return crownShapes(enemy, r, color);
   }
 }
 
