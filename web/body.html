@@ -1,0 +1,74 @@
+<div id="app">
+  <header id="hud">
+    <div class="hud-row">
+      <div class="chip mission">
+        <span class="label">GÖREV</span>
+        <strong id="mission">KILCAL DAMAR</strong>
+      </div>
+      <div class="chip score">
+        <span class="label">PUAN</span>
+        <strong id="score">0</strong>
+      </div>
+      <button id="pause" type="button" aria-label="Duraklat">❚❚</button>
+    </div>
+
+    <div class="hud-row gauge">
+      <div class="bar"><div id="bar-fill"></div></div>
+      <span id="percent">%0.0 / %60</span>
+    </div>
+
+    <div class="hud-row meta">
+      <div id="lives" class="lives" aria-label="Kalan gemi"></div>
+      <div id="shield" class="shield" aria-label="Kalkan"></div>
+      <span class="spacer"></span>
+      <span class="coin" id="gold">0</span>
+      <span class="label" id="high">REKOR 0</span>
+    </div>
+  </header>
+
+  <main id="stage"><canvas id="field"></canvas></main>
+
+  <footer id="stick">
+    <div id="stick-hint"></div>
+    <button id="dive" type="button" aria-label="Işın">IŞIN</button>
+  </footer>
+</div>
+
+<div id="stick-base"></div>
+<div id="stick-knob"></div>
+
+<div id="cutscene" hidden>
+  <canvas id="cutscene-canvas"></canvas>
+  <span class="skip">dokun: geç</span>
+</div>
+
+<div id="overlay" hidden>
+  <div class="panel">
+    <h1 id="ov-title"></h1>
+    <p id="ov-sub"></p>
+    <div id="ov-story"></div>
+    <dl id="ov-rows"></dl>
+    <p class="hint" id="ov-hint"></p>
+    <button id="ov-primary" type="button"></button>
+    <button id="ov-secondary" class="ghost" type="button" hidden></button>
+    <button id="ov-tertiary" class="ghost" type="button" hidden></button>
+  </div>
+</div>
+
+<div id="shop" hidden>
+  <div class="panel shop-panel">
+    <h1>HANGAR</h1>
+    <div class="shop-head">
+      <canvas id="ship-preview" width="240" height="132" aria-label="Gemi önizlemesi"></canvas>
+      <dl class="shop-purse">
+        <dt>ALTIN</dt>
+        <dd class="coin" id="shop-gold">0</dd>
+        <dt>GEMİ DEĞERİ</dt>
+        <dd id="shop-value">0</dd>
+      </dl>
+    </div>
+    <div id="shop-list"></div>
+    <p class="hint" id="shop-hint"></p>
+    <button id="shop-close" type="button">GERİ DÖN</button>
+  </div>
+</div>

@@ -36,4 +36,12 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 
-app-example
+# generated native folders
+/ios
+/android
+
+# Önizleme aracının kök dizine yazdığı varsayılan çıktı
+/preview.png
+
+# Web derleme çıktısı
+/dist

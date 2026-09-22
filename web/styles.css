@@ -1,0 +1,614 @@
+@import url("https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&display=swap");
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  color: var(--text);
+  background: var(--background);
+  background-image: radial-gradient(120% 70% at 50% 0%, #2a1550 0%, #150c2b 45%, var(--background) 100%);
+  font-family: Fredoka, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: none;
+  overscroll-behavior: none;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
+}
+
+/* ---------------------------------------------------------------- üst panel */
+
+#hud {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px 6px;
+}
+
+.hud-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.chip {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px 12px;
+  border-radius: 14px;
+  border: 2px solid var(--surface-edge);
+  background: linear-gradient(180deg, #221545 0%, #140c2b 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.09), 0 2px 0 rgba(0, 0, 0, 0.35);
+}
+
+.chip.mission {
+  flex: 1;
+  min-width: 0;
+}
+
+.chip.score {
+  align-items: flex-end;
+}
+
+.chip strong {
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chip.score strong {
+  font-variant-numeric: tabular-nums;
+  color: var(--gold);
+}
+
+.label {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  color: var(--text-dim);
+}
+
+#pause {
+  flex: none;
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  border: 2px solid var(--surface-edge);
+  background: linear-gradient(180deg, #221545 0%, #140c2b 100%);
+  color: var(--accent);
+  font-size: 12px;
+  letter-spacing: 2px;
+  cursor: pointer;
+}
+
+.bar {
+  flex: 1;
+  height: 14px;
+  border-radius: 9px;
+  border: 2px solid var(--surface-edge);
+  background: #120a26;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+}
+
+#bar-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 7px 4px 4px 7px;
+  background: linear-gradient(180deg, #6bffd8 0%, var(--accent) 55%, #17a58c 100%);
+  transition: width 120ms linear;
+}
+
+#bar-fill.reached {
+  background: linear-gradient(180deg, #ffe9a8 0%, var(--gold) 55%, #d29a12 100%);
+}
+
+#percent {
+  min-width: 96px;
+  text-align: right;
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+}
+
+#percent.reached {
+  color: var(--gold);
+}
+
+.meta {
+  justify-content: space-between;
+}
+
+.lives {
+  display: flex;
+  gap: 7px;
+  height: 14px;
+}
+
+/* Kalan gemiler: küçük gemi siluetleri. */
+.lives span {
+  width: 18px;
+  height: 12px;
+  background: var(--player-glow);
+  clip-path: polygon(100% 50%, 30% 0%, 0% 22%, 12% 50%, 0% 78%, 30% 100%);
+}
+
+/* ------------------------------------------------------------------- sahne */
+
+#stage {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  min-height: 0;
+  padding: 2px 8px;
+}
+
+canvas {
+  display: block;
+  /* Çerçeve tuvalin içinde çiziliyor; burada yalnızca yumuşak bir gölge. */
+  filter: drop-shadow(0 10px 26px rgba(0, 0, 0, 0.55));
+}
+
+/* ---------------------------------------------------------------- kontrol */
+
+#stick {
+  position: relative;
+  height: 152px;
+  flex: none;
+  display: grid;
+  place-items: center;
+}
+
+#stick-hint {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  border: 2px dashed var(--surface-edge);
+  opacity: 0.6;
+}
+
+#stick-hint::after {
+  content: "";
+  display: block;
+  width: 34px;
+  height: 34px;
+  margin: 29px auto;
+  border-radius: 50%;
+  background: var(--surface-edge);
+  opacity: 0.7;
+}
+
+#dive {
+  position: absolute;
+  right: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 92px;
+  height: 92px;
+  border-radius: 50%;
+  border: 3px solid var(--accent);
+  background: radial-gradient(120% 120% at 50% 20%, #1c6f62 0%, #0f3b3c 70%, #0a2530 100%);
+  color: var(--accent);
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  cursor: pointer;
+  touch-action: none;
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.45), inset 0 2px 0 rgba(255, 255, 255, 0.18);
+}
+
+#dive.held {
+  background: radial-gradient(120% 120% at 50% 20%, #8dffe4 0%, var(--accent) 60%, #12a487 100%);
+  color: #06241f;
+  transform: translateY(-50%) scale(0.96);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.45), inset 0 2px 0 rgba(255, 255, 255, 0.4);
+}
+
+#stick-base,
+#stick-knob {
+  position: fixed;
+  pointer-events: none;
+  display: none;
+}
+
+#stick-base {
+  width: 108px;
+  height: 108px;
+  margin: -54px 0 0 -54px;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  opacity: 0.4;
+}
+
+#stick-knob {
+  width: 46px;
+  height: 46px;
+  margin: -23px 0 0 -23px;
+  border-radius: 50%;
+  background: var(--accent);
+  opacity: 0.85;
+}
+
+body.dragging #stick-base,
+body.dragging #stick-knob {
+  display: block;
+}
+
+body.dragging #stick-hint {
+  opacity: 0.15;
+}
+
+/* ------------------------------------------------------------------ panel */
+
+#overlay {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(7, 4, 16, 0.9);
+}
+
+#overlay[hidden] {
+  display: none;
+}
+
+.panel {
+  width: 100%;
+  max-width: 360px;
+  max-height: 100%;
+  overflow-y: auto;
+  padding: 22px 20px;
+  border-radius: 22px;
+  border: 2px solid var(--surface-edge);
+  background: linear-gradient(180deg, #241750 0%, #150d2c 100%);
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.08), 0 16px 40px rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.panel h1 {
+  margin: 0;
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-align: center;
+  color: var(--accent);
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.5);
+}
+
+.panel p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 21px;
+  color: var(--text-dim);
+  text-align: center;
+}
+
+.panel p.hint {
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.panel p:empty,
+.panel dl:empty {
+  display: none;
+}
+
+/* ID seçicisi ağır bastığı için boş durum burada ayrıca gizleniyor. */
+#ov-story:empty {
+  display: none;
+}
+
+/* Hikâye satırları: seyir defteri gibi soldan hizalı. */
+#ov-story {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--surface-edge);
+  background: rgba(10, 6, 22, 0.6);
+}
+
+#ov-story p {
+  text-align: left;
+  font-size: 13px;
+  line-height: 19px;
+  color: var(--text);
+}
+
+.panel dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px 12px;
+}
+
+.panel dt {
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+}
+
+.panel dd {
+  margin: 0;
+  text-align: right;
+  font-size: 16px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.panel button {
+  height: 52px;
+  border: 0;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #6bffd8 0%, var(--accent) 60%, #12a487 100%);
+  color: #06241f;
+  font-family: inherit;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  cursor: pointer;
+  box-shadow: 0 4px 0 #0b6b5a;
+}
+
+.panel button.ghost {
+  background: transparent;
+  border: 2px solid var(--surface-edge);
+  color: var(--text);
+  box-shadow: none;
+}
+
+.panel button[hidden] {
+  display: none;
+}
+
+.panel button:active {
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 #0b6b5a;
+}
+
+/* ------------------------------------------------------- altın ve kalkan */
+
+.hud-row.meta {
+  gap: 8px;
+}
+
+.hud-row .spacer {
+  flex: 1;
+}
+
+.shield {
+  display: flex;
+  gap: 5px;
+  height: 10px;
+}
+
+.shield span {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  border: 2px solid var(--filled-edge);
+}
+
+.shield span.full {
+  background: var(--filled-edge);
+}
+
+.coin {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--gold);
+}
+
+.coin::before {
+  content: "";
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff3c4 0%, var(--gold) 55%, #b07d12 100%);
+}
+
+/* ------------------------------------------------------------ ara sahne */
+
+#cutscene {
+  position: fixed;
+  inset: 0;
+  background: #07040f;
+  cursor: pointer;
+}
+
+#cutscene[hidden] {
+  display: none;
+}
+
+#cutscene canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+#cutscene .skip {
+  position: absolute;
+  right: 16px;
+  bottom: calc(14px + env(safe-area-inset-bottom));
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: rgba(255, 255, 255, 0.45);
+  pointer-events: none;
+}
+
+/* ------------------------------------------------------------- hangar */
+
+#shop {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(7, 4, 16, 0.94);
+}
+
+#shop[hidden] {
+  display: none;
+}
+
+.shop-panel {
+  max-width: 420px;
+  gap: 14px;
+}
+
+.shop-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+#ship-preview {
+  flex: 1;
+  min-width: 0;
+  height: auto;
+  border-radius: 14px;
+  border: 1px solid var(--surface-edge);
+  background: radial-gradient(120% 120% at 50% 20%, #241750 0%, #0d0820 100%);
+}
+
+.shop-purse {
+  margin: 0;
+  display: grid;
+  gap: 2px;
+  text-align: right;
+}
+
+.shop-purse dt {
+  font-size: 10px;
+  letter-spacing: 1.2px;
+  color: var(--text-dim);
+}
+
+.shop-purse dd {
+  margin: 0 0 8px;
+  font-size: 18px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  justify-content: flex-end;
+}
+
+#shop-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 46vh;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.part {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--surface-edge);
+  background: rgba(10, 6, 22, 0.55);
+}
+
+.part h2 {
+  grid-column: 1;
+  margin: 0;
+  font-size: 14px;
+  letter-spacing: 0.8px;
+  color: var(--text);
+}
+
+.part .pips {
+  grid-column: 2;
+  display: flex;
+  gap: 4px;
+  align-self: center;
+}
+
+.part .pips i {
+  width: 12px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--surface-edge);
+}
+
+.part .pips i.on {
+  background: var(--accent);
+}
+
+.part .effect {
+  grid-column: 1 / -1;
+  margin: 0;
+  text-align: left;
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--text-dim);
+}
+
+.part .effect b {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.part button {
+  grid-column: 1 / -1;
+  height: 40px;
+  font-size: 14px;
+  letter-spacing: 0.6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.part button[disabled] {
+  background: transparent;
+  border: 2px solid var(--surface-edge);
+  color: var(--text-dim);
+  box-shadow: none;
+  cursor: default;
+}
+
+.part button .coin {
+  /* Naneli tuşun üstünde koyu yazı okunur kalsın. */
+  color: #06241f;
+}
+
+.part button[disabled] .coin {
+  color: var(--text-dim);
+}
+
+.part.maxed {
+  border-color: var(--filled);
+}
