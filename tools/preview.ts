@@ -11,6 +11,7 @@ import { EMPTY } from '../src/engine/types';
 import type { Enemy, Input } from '../src/engine/types';
 import { writeFieldPixels } from '../src/ui/gridImage';
 import { hexToRgb, palette } from '../src/ui/palette';
+import { monsterFor, tissueTheme } from '../src/ui/tissues';
 import { encodePng } from './png';
 
 const SCALE = 3;
@@ -170,7 +171,7 @@ type Snapshot = { pixels: Uint8Array; width: number; height: number; caption: st
 function renderSnapshot(game: Game): Snapshot {
   const { field } = game;
   const cellPixels = new Uint8Array(field.w * field.h * 4);
-  writeFieldPixels(field, cellPixels);
+  writeFieldPixels(field, cellPixels, tissueTheme(game.level));
 
   const width = field.w * SCALE;
   const height = field.h * SCALE;
@@ -191,7 +192,7 @@ function renderSnapshot(game: Game): Snapshot {
   }
 
   for (const enemy of game.enemies) {
-    fillCircle(pixels, width, height, enemy.x * SCALE, enemy.y * SCALE, enemy.radius * SCALE, enemyColor(enemy));
+    fillCircle(pixels, width, height, enemy.x * SCALE, enemy.y * SCALE, enemy.radius * SCALE, enemyColor(enemy, game.level));
   }
   fillCircle(
     pixels,
@@ -211,10 +212,9 @@ function renderSnapshot(game: Game): Snapshot {
   };
 }
 
-function enemyColor(enemy: Enemy) {
-  if (enemy.kind === 'boss') return hexToRgb(palette.boss);
-  if (enemy.kind === 'hunter') return hexToRgb(palette.hunter);
-  return hexToRgb(palette.drifter);
+/** Düşmanın o bölümdeki canavar rengi. */
+function enemyColor(enemy: Enemy, level: number) {
+  return hexToRgb(monsterFor(tissueTheme(level), enemy.kind).color);
 }
 
 function fillCircle(

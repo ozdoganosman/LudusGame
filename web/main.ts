@@ -15,6 +15,8 @@ import { territoryOutline } from '../src/ui/contour';
 import type { Point } from '../src/ui/contour';
 import { enemyShapes, shipAngle, shipShapes, shotShapes } from '../src/ui/creatures';
 import type { Shape } from '../src/ui/creatures';
+import { bestiaryLine, monsterFor, tissueTheme } from '../src/ui/tissues';
+import type { TissueTheme } from '../src/ui/tissues';
 import { partCards } from '../src/ui/parts';
 import {
   PROFILE_KEY,
@@ -37,7 +39,11 @@ import {
   missionLabel,
   missionProgress,
 } from '../src/ui/story';
-import { writeBackgroundPixels } from '../src/ui/gridImage';
+import {
+  TEXTURE_SCALE,
+  writeHealthyPixels,
+  writeSickPixels,
+} from '../src/ui/gridImage';
 import { palette } from '../src/ui/palette';
 
 type Mode = 'menu' | 'brief' | 'playing' | 'paused' | 'levelClear' | 'gameOver' | 'shop';
@@ -119,14 +125,39 @@ let hudTimer = 0;
 let facing = -Math.PI / 2;
 let summary = { level: 1, percent: 0, score: 0, bonus: 0, gold: 0 };
 
-// Zemin (boş alan + nokta dokusu) bir kez üretilir, her karede ölçeklenerek çizilir.
-const backgroundCanvas = document.createElement('canvas');
-backgroundCanvas.width = FIELD_W;
-backgroundCanvas.height = FIELD_H;
-const backgroundContext = require2d(backgroundCanvas);
-const backgroundImage = backgroundContext.createImageData(FIELD_W, FIELD_H);
-writeBackgroundPixels(game.field, backgroundImage.data);
-backgroundContext.putImageData(backgroundImage, 0, 0);
+/**
+ * Dokunun iki hâli hücre çözünürlüğünde bir kez üretilir, her karede
+ * ölçeklenerek çizilir: hastalıklı zemin ve (ele geçirilen alana kırpılan)
+ * iyileşmiş doku. Görev değişince yeniden üretilir.
+ */
+const sickLayer = tissueCanvas();
+const healthyLayer = tissueCanvas();
+let theme: TissueTheme = tissueTheme(game.level);
+let themeLevel = -1;
+
+function tissueCanvas(): HTMLCanvasElement {
+  const layer = document.createElement('canvas');
+  layer.width = FIELD_W * TEXTURE_SCALE;
+  layer.height = FIELD_H * TEXTURE_SCALE;
+  return layer;
+}
+
+/** Görevin dokusunu hazırlar; aynı görevde tekrar çalışmaz. */
+function buildTissue(): void {
+  if (themeLevel === game.level) return;
+  themeLevel = game.level;
+  theme = tissueTheme(game.level);
+
+  const sick = require2d(sickLayer);
+  const sickImage = sick.createImageData(sickLayer.width, sickLayer.height);
+  writeSickPixels(game.field, sickImage.data, theme);
+  sick.putImageData(sickImage, 0, 0);
+
+  const healthy = require2d(healthyLayer);
+  const healthyImage = healthy.createImageData(healthyLayer.width, healthyLayer.height);
+  writeHealthyPixels(game.field, healthyImage.data, theme);
+  healthy.putImageData(healthyImage, 0, 0);
+}
 
 /** Ele geçirilmiş alanın sınırı; yalnızca hücreler değişince yeniden hesaplanır. */
 let outline: Point[][] = [];
@@ -180,6 +211,7 @@ window.addEventListener('resize', resize);
 // -------------------------------------------------------------------- çizim
 
 function draw(): void {
+  buildTissue();
   if (gridVersion !== game.field.version) {
     outline = territoryOutline(game.field);
     gridVersion = game.field.version;
@@ -191,17 +223,21 @@ function draw(): void {
 
   context.save();
   context.translate(MARGIN * cell, MARGIN * cell);
-  context.imageSmoothingEnabled = false;
-  context.drawImage(backgroundCanvas, 0, 0, width, height);
+  // Doku katmanları yumuşatılarak çizilir: organik görünüm piksel basamağı istemiyor.
+  context.imageSmoothingEnabled = true;
+  context.drawImage(sickLayer, 0, 0, width, height);
 
-  drawTerritory();
+  drawTerritory(width, height);
   drawTrail();
   drawCrew();
   context.restore();
 }
 
-/** Ele geçirilmiş alan: köşeleri pahlanmış sınır çokgeni, üstünde ince bir kenar ışığı. */
-function drawTerritory(): void {
+/**
+ * İyileşmiş doku: sınır çokgeninin içine dokunun sağlıklı görüntüsü kırpılarak
+ * çizilir, üstüne ince bir kenar ışığı gelir.
+ */
+function drawTerritory(width: number, height: number): void {
   if (outline.length === 0) return;
 
   context.beginPath();
@@ -215,12 +251,17 @@ function drawTerritory(): void {
     context.closePath();
   }
 
-  context.fillStyle = palette.filled;
+  context.save();
   // Çift-tek kuralı: patronun sıkıştığı boşluk delik olarak kalır.
-  context.fill('evenodd');
+  context.clip('evenodd');
+  context.fillStyle = theme.healthy;
+  context.fillRect(0, 0, width, height);
+  context.drawImage(healthyLayer, 0, 0, width, height);
+  context.restore();
+
   context.lineJoin = 'round';
   context.lineWidth = Math.max(1, cell * 0.5);
-  context.strokeStyle = palette.filledEdge;
+  context.strokeStyle = theme.healthyEdge;
   context.stroke();
 }
 
@@ -273,7 +314,9 @@ function drawShapes(target: CanvasRenderingContext2D, shapes: Shape[], scale: nu
 
 function drawCrew(): void {
   const look = { x: game.player.x + 0.5, y: game.player.y + 0.5 };
-  for (const enemy of game.enemies) drawShapes(context, enemyShapes(enemy, look), cell);
+  for (const enemy of game.enemies) {
+    drawShapes(context, enemyShapes(enemy, look, monsterFor(theme, enemy.kind)), cell);
+  }
   for (const shot of game.shots) drawShapes(context, shotShapes(shot), cell);
 
   if (game.phase === 'dying') {
@@ -434,7 +477,7 @@ function render(): void {
           { label: 'Görev primi', value: `${tr(next.reward)} altın` },
           { label: 'Altın', value: tr(purse()) },
         ],
-        hint: next.hint,
+        hint: `${next.hint} Bu dokuda: ${bestiaryLine(mission)}.`,
         primary: { label: 'DALIŞA GEÇ', onPress: launch },
         secondary: hangarAction(),
         tertiary: { label: 'ANA EKRAN', onPress: () => setMode('menu') },
@@ -538,6 +581,7 @@ function launch(): void {
   else game.start(mission);
   continuingRun = false;
   gridVersion = -1;
+  themeLevel = -1;
   setMode('playing');
 }
 

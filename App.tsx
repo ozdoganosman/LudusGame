@@ -30,6 +30,7 @@ import {
   missionProgress,
 } from './src/ui/story';
 import { loadProfile, saveProfile } from './src/ui/storage';
+import { bestiaryLine } from './src/ui/tissues';
 import { useGameLoop } from './src/ui/useGameLoop';
 
 type Mode = 'menu' | 'brief' | 'playing' | 'paused' | 'levelClear' | 'gameOver' | 'shop';
@@ -340,7 +341,7 @@ function GameRoot() {
             { label: 'Görev primi', value: `${tr(briefing.reward)} altın` },
             { label: 'Altın', value: tr(purse) },
           ]}
-          hint={briefing.hint}
+          hint={`${briefing.hint} Bu dokuda: ${bestiaryLine(mission)}.`}
           primary={{ label: 'DALIŞA GEÇ', onPress: launch }}
           secondary={{ label: 'HANGAR', onPress: openShop }}
           tertiary={{ label: 'ANA EKRAN', onPress: goToMenu }}

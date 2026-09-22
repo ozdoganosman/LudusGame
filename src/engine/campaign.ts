@@ -8,10 +8,10 @@ import { levelConfig } from './config';
 import type { LevelConfig } from './config';
 
 /**
- * Bölüm başına temizlenmesi gereken alan. Öğrenme bölümü düşük başlar,
- * kampanya sonunda dokunun neredeyse tamamı istenir.
+ * Bölüm başına temizlenmesi gereken alan. İlk bölüm bile rahat değil; kampanya
+ * sonunda dokunun neredeyse tamamı istenir.
  */
-const TARGETS = [60, 64, 68, 70, 72, 74, 76, 78, 80, 82, 84, 86];
+const TARGETS = [62, 66, 70, 73, 75, 77, 79, 81, 83, 85, 87, 88];
 
 /** Ana hikâyenin bölüm sayısı. Sonrası sonsuz dalga. */
 export const CAMPAIGN_LENGTH = TARGETS.length;

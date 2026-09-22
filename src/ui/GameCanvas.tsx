@@ -4,22 +4,32 @@ import {
   ColorType,
   FillType,
   FilterMode,
+  Group,
   Image as SkiaImage,
   MipmapMode,
   Path,
   Skia,
 } from '@shopify/react-native-skia';
-import type { SkPath } from '@shopify/react-native-skia';
+import type { SkImage, SkPath } from '@shopify/react-native-skia';
 import { memo, useMemo, useRef } from 'react';
 
+import type { Field } from '../engine/field';
 import type { Game } from '../engine/game';
 import type { Loadout } from '../engine/upgrades';
 import { territoryOutline } from './contour';
 import { enemyShapes, shipAngle, shipShapes, shotShapes } from './creatures';
 import type { Shape } from './creatures';
-import { writeBackgroundPixels } from './gridImage';
+import {
+  textureBufferSize,
+  textureHeight,
+  textureWidth,
+  writeHealthyPixels,
+  writeSickPixels,
+} from './gridImage';
 import { palette } from './palette';
 import { ShapeNodes } from './SkiaShapes';
+import { monsterFor, tissueTheme } from './tissues';
+import type { TissueTheme } from './tissues';
 
 type Props = {
   game: Game;
@@ -31,28 +41,51 @@ type Props = {
   loadout: Loadout;
 };
 
+/** Doku tamponunu Skia görüntüsüne çevirir. */
+function toImage(field: Field, pixels: Uint8Array): SkImage | null {
+  const data = Skia.Data.fromBytes(pixels);
+  const width = textureWidth(field);
+  return Skia.Image.MakeImage(
+    {
+      width,
+      height: textureHeight(field),
+      colorType: ColorType.RGBA_8888,
+      alphaType: AlphaType.Opaque,
+    },
+    data,
+    width * 4
+  );
+}
+
 export const GameCanvas = memo(function GameCanvas({ game, cell, frame, loadout }: Props) {
   const { field } = game;
   const width = field.w * cell;
   const height = field.h * cell;
 
-  const pixels = useMemo(() => new Uint8Array(field.w * field.h * 4), [field]);
+  const sickPixels = useMemo(() => new Uint8Array(textureBufferSize(field)), [field]);
+  const healthyPixels = useMemo(() => new Uint8Array(textureBufferSize(field)), [field]);
 
-  // Zemin (boş alan + nokta dokusu) değişmez: bir kez kodlanır.
-  const background = useMemo(() => {
-    writeBackgroundPixels(field, pixels);
-    const data = Skia.Data.fromBytes(pixels);
-    return Skia.Image.MakeImage(
-      {
-        width: field.w,
-        height: field.h,
-        colorType: ColorType.RGBA_8888,
-        alphaType: AlphaType.Opaque,
-      },
-      data,
-      field.w * 4
-    );
-  }, [field, pixels]);
+  // Dokunun iki hâli görev başına bir kez kodlanır: hastalıklı zemin ve
+  // (ele geçirilen alana kırpılan) iyileşmiş doku.
+  const tissue = useRef<{ level: number; theme: TissueTheme; sick: SkImage | null; healthy: SkImage | null }>({
+    level: -1,
+    theme: tissueTheme(1),
+    sick: null,
+    healthy: null,
+  });
+
+  if (tissue.current.level !== game.level) {
+    const theme = tissueTheme(game.level);
+    writeSickPixels(field, sickPixels, theme);
+    writeHealthyPixels(field, healthyPixels, theme);
+    tissue.current = {
+      level: game.level,
+      theme,
+      sick: toImage(field, sickPixels),
+      healthy: toImage(field, healthyPixels),
+    };
+  }
+  const theme = tissue.current.theme;
 
   // Sınır çokgeni ve iz, hücreler değiştiğinde (field.version) yeniden kurulur;
   // her karede değil. İz de aynı sayaçla ilerler, çünkü iz hücreleri alana yazılır.
@@ -102,7 +135,9 @@ export const GameCanvas = memo(function GameCanvas({ game, cell, frame, loadout 
 
   // Dokunulmazken gemi yanıp söner; vurulduğunda patlama parıltısı çizilir.
   const blink = game.invulnerable > 0 && Math.floor(frame / 5) % 2 === 0;
-  const crew: Shape[] = game.enemies.flatMap((enemy) => enemyShapes(enemy, look));
+  const crew: Shape[] = game.enemies.flatMap((enemy) =>
+    enemyShapes(enemy, look, monsterFor(theme, enemy.kind))
+  );
   for (const shot of game.shots) crew.push(...shotShapes(shot));
   if (game.phase === 'dying') {
     crew.push({ kind: 'circle', x: look.x, y: look.y, r: 4, color: palette.danger, alpha: 0.55 });
@@ -120,26 +155,43 @@ export const GameCanvas = memo(function GameCanvas({ game, cell, frame, loadout 
     );
   }
 
+  // Doku katmanları yumuşatılarak ölçeklenir: organik görünüm piksel basamağı istemiyor.
+  const sampling = { filter: FilterMode.Linear, mipmap: MipmapMode.None };
+
   return (
     <Canvas style={{ width, height }}>
-      {background ? (
+      {tissue.current.sick ? (
         <SkiaImage
-          image={background}
+          image={tissue.current.sick}
           x={0}
           y={0}
           width={width}
           height={height}
           fit="fill"
-          sampling={{ filter: FilterMode.Nearest, mipmap: MipmapMode.None }}
+          sampling={sampling}
         />
       ) : null}
 
       {territory ? (
         <>
-          <Path path={territory} color={palette.filled} style="fill" />
+          {tissue.current.healthy ? (
+            <Group clip={territory}>
+              <SkiaImage
+                image={tissue.current.healthy}
+                x={0}
+                y={0}
+                width={width}
+                height={height}
+                fit="fill"
+                sampling={sampling}
+              />
+            </Group>
+          ) : (
+            <Path path={territory} color={theme.healthy} style="fill" />
+          )}
           <Path
             path={territory}
-            color={palette.filledEdge}
+            color={theme.healthyEdge}
             style="stroke"
             strokeWidth={Math.max(1, cell * 0.5)}
             strokeJoin="round"

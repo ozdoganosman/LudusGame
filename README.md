@@ -24,7 +24,7 @@ Aynı oyun motoru iki yerde çalışır: **mobil** (Expo / React Native + Skia) 
 
 | Kural | Ayrıntı |
 | --- | --- |
-| Hedef | Bölümün istediği oranda dokuyu temizlemek (%60'tan başlar, son bölümde %86) |
+| Hedef | Bölümün istediği oranda dokuyu temizlemek (%62'den başlar, son bölümde %88) |
 | Hareket | Gemi yalnızca temizlenmiş alanın **kenarında** yürür; bloğun içine giremez |
 | Işın | Kenardan hastalıklı dokuya yalnızca **IŞIN** tuşu basılıyken çıkılır |
 | Risk | Dokuya girdiğin anda iz bırakmaya başlarsın ve açıktasın |
@@ -32,7 +32,7 @@ Aynı oyun motoru iki yerde çalışır: **mobil** (Expo / React Native + Skia) 
 | Ölüm | Düşman izine veya gemiye değerse, ya da kendi izinin **başka** bir yerine girersen |
 | Patojen (pembe) | Bulunduğu bölge temizlenemez, her yerde tehlikelidir |
 | Mikrop (renkli) | Rastgele seker; temizlenen bölgede kalırsa yok olur ve puan verir |
-| Virüs (mor) | 4. görevden sonra çıkar, gemiyi takip eder |
+| Virüs | 3. bölümden sonra çıkar, gemiyi takip eder; görev görev daha ısrarlı döner |
 | Işın topu | Satın alındıysa baktığın yöne otomatik ateş eder; mikrop ve virüsü düşürür, patronu savurur |
 | Kalkan | Satın alındıysa mikrop/virüs darbesini emer (iz gider, can gitmez) ve zamanla dolar |
 
@@ -40,10 +40,26 @@ Aynı oyun motoru iki yerde çalışır: **mobil** (Expo / React Native + Skia) 
 
 Bölümler sırayla açılır ve kaldığın yer kaydedilir. Her bölüm bir doku: kılcal
 damar, soluk borusu, akciğer, mide astarı, kan dolaşımı, lenf düğümü, kemik iliği,
-karaciğer, böbrek, kalp kapağı, omurilik, beyin sapı. Zorluk bölüm bölüm artar:
-temizlenmesi gereken alan büyür, düşman sayısı ve hızı yükselir, virüsler 4.
-bölümde girer. Çekirdek dağıldıktan sonra oyun bitmez — sonsuz **mutasyon
-dalgaları** başlar.
+karaciğer, böbrek, kalp kapağı, omurilik, beyin sapı. Çekirdek dağıldıktan sonra
+oyun bitmez — sonsuz **mutasyon dalgaları** başlar.
+
+**Her bölümün kendi görüntüsü var.** Hastalıklı doku o organın hâline göre çizilir
+(soluk borusunda sümüklü gri-yeşil iplikler, akciğerde kararmış hava keseleri,
+kalp kapağında yırtılmış kas lifleri, beyin sapında çekirdekten yayılan halkalar);
+temizlediğin alan aynı dokunun sağlıklı hâline döner (soluk borusunda temiz
+kırmızı, lenf düğümünde berrak turkuaz). Desenler yordamsal: varlık dosyası yok,
+her doku kendi görüntüsünü hesaplıyor.
+
+**Her bölümün kendi canavarları var.** Mikrop/virüs/patojen davranışları aynı
+kalır ama görünüşleri bölüme göre değişir: solucan, basil, kok kümesi, spor,
+denizanası, kristal, faj, amip; patronlar dişli ağız, dev göz ya da üç başlı
+hidra. Adları da bölüme özel (balgam solucanı, lenf denizanası, BOĞAZ TIKACI…) ve
+brifingde yazılı.
+
+**Zorluk ilk bölümden itibaren sıkıştırır:** 1. bölüm iki mikrop, hızlı bir
+patojen ve 23 saniyede bir yeni doğumla başlar; her bölümde temizlenecek alan
+büyür, düşman sayısı ve hızı yükselir, doğumlar sıklaşır, virüsler daha ısrarlı
+döner. 12. bölümde sekiz mikrop, beş virüs ve iki kat hızlı bir patojen var.
 
 Görevi tamamlarsan puan ve can sıradaki bölüme taşınır; filo tükenirse kazandığın
 altın kasada kalır, gemiyi güçlendirip aynı bölüme dönersin.
@@ -124,7 +140,7 @@ Hızlı yol olarak `npm run build:web` sonrası `dist/` klasörünü
 ## Geliştirme
 
 ```bash
-npm test         # motor ve arayüz testleri (65 test)
+npm test         # motor ve arayüz testleri (69 test)
 npm run typecheck
 npm run lint
 npm run build:web  # dist/ üretir
@@ -136,8 +152,8 @@ npm run preview    # motoru başsız oynatıp docs/preview.png üretir
 ```
 src/engine/        Platformdan bağımsız oyun motoru (saf TypeScript, React içermez)
   types.ts         Hücre durumları, düşman, mermi ve olay tipleri
-  config.ts        Alan boyutu, hızlar, zorluk eğrisi
   campaign.ts      Görev planı: hedef yüzde, kadro, altın primi (sonsuz dalgalar dahil)
+  config.ts        Alan boyutu, hızlar, zorluk eğrisi
   upgrades.ts      Parçalar, kademe fiyatları ve oynanış etkileri (ShipStats)
   field.ts         Grid, bölge etiketleme (flood fill), ele geçirme kuralları
   game.ts          Oyuncu adımları, düşman davranışı, çarpışma, seviye akışı
@@ -153,13 +169,14 @@ src/ui/            React Native / Skia katmanı
   parts.ts         Parça adları ve etki metinleri
   profile.ts       Kalıcı profil: altın, parçalar, açılan bölüm, rekor
   contour.ts       Sınır çokgeni çıkarma ve merdiven köşelerini pahlama
-  creatures.ts     Gemi ve düşman şekilleri (renderdan bağımsız şekil listesi)
+  creatures.ts     Gemi, parçalar ve 11 canavar arketipinin şekilleri
+  tissues.ts       Bölüm başına doku renkleri, arka plan deseni ve canavar kadrosu
   story.ts         Ana hikâye, bölüm brifingleri, düşman tema adları
-  gridImage.ts     Alan -> piksel dönüşümü (zemin ve ham grid görünümü)
-  palette.ts       Tek renk kaynağı
+  gridImage.ts     Yordamsal doku görüntüleri (hastalıklı zemin, iyileşmiş doku, ham grid)
+  palette.ts       Arayüzün ortak renkleri (gemi, iz, paneller)
 web/               Web sürümü: Canvas2D render + DOM arayüzü
   body.html        Arayüz iskeleti (HUD, alan, joystick, panel)
-  styles.css       Görünüm; renkleri palette'ten CSS değişkeni olarak alır
+  styles.css       Görünüm; arayüz renklerini palette'ten CSS değişkeni olarak alır
   main.ts          Çizim, girdi (dokunmatik + klavye), HUD, ekran akışı
 tools/
   build-web.mjs    esbuild paketleme; üç çıktıyı tek kaynaktan oluşturur
@@ -193,6 +210,12 @@ App.tsx            Mobil ekran akışı (menü / oyun / duraklatma / seviye sonu
   metinleri yalnızca arayüz katmanındadır (`src/ui/story.ts`). Karakter
   çizimleri de renderdan bağımsız bir şekil listesidir (`src/ui/creatures.ts`),
   böylece web ve mobil aynı gemiyi ve aynı düşmanları çizer.
+- **Doku görüntüleri yordamsal.** Her bölümün deseni (damar, sümük ipliği, hava
+  kesesi, petek, kas lifi, sinir ağı, çekirdek halkası) konuma bağlı deterministik
+  gürültüden hesaplanır; hücre başına 3 piksel üretilip yumuşatılarak ölçeklenir.
+  İyileşmiş doku aynı deseni sağlıklı renklerle çizer ve sınır çokgeninin içine
+  kırpılır (Canvas2D'de `clip`, Skia'da `Group clip`), yani temizlenen alan düz bir
+  renk değil gerçek bir doku gibi görünür.
 - **Çizim.** Oyun mantığı hücre tabanlı ama görüntü değil: ele geçirilmiş alanın
   sınırı `src/ui/contour.ts` ile çokgen olarak çıkarılır ve merdiven köşeleri
   pahlanır (tek hücrelik kenarların köşesi yarıdan kesilince ardışık basamaklar

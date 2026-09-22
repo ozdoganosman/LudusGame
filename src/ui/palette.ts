@@ -1,7 +1,6 @@
 /**
- * Oyunun tek renk kaynağı; hem uygulama hem web hem önizleme aracı buradan okur.
- * Tema: küçültülmüş bir nanogeminin insan dokusu içindeki seferi. Koyu, mor
- * dokunun üzerinde parlak naneye çalan "temizlenmiş" bölgeler.
+ * Arayüzün ortak renkleri: gemi, iz, paneller ve metinler. Dokuların ve
+ * canavarların renkleri bölüme göre değişir ve src/ui/tissues.ts içinde durur.
  */
 export const palette = {
   background: '#090614',
@@ -17,12 +16,8 @@ export const palette = {
   trail: '#7df9ff',
   player: '#eaf6ff',
   playerGlow: '#7df9ff',
-  /** Patojen (patron). */
+  /** Tehlike vurgusu (patlama, uyarı). */
   boss: '#ff3d6e',
-  /** Virüs (avcı). */
-  hunter: '#b06bff',
-  /** Mikrop (gezgin) — gövde rengi id'ye göre germColors'tan seçilir. */
-  drifter: '#8bd94b',
   text: '#f3edff',
   textDim: '#a294cc',
   accent: '#3ff0c0',
@@ -30,10 +25,8 @@ export const palette = {
   gold: '#ffd75e',
 } as const;
 
-/** Mikropların gövde renkleri; çizgi film hissi için doygun ve çeşitli. */
-export const germColors = ['#8bd94b', '#ffa63d', '#4fc3ff', '#ff6fd8', '#ffe34f'] as const;
-
 export type Rgb = [number, number, number];
+
 
 export function hexToRgb(hex: string): Rgb {
   const value = parseInt(hex.replace('#', ''), 16);

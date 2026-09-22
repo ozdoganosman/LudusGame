@@ -1,5 +1,6 @@
 import { KILL_GOLD, captureGold, missionPlan } from './campaign';
 import type { MissionPlan } from './campaign';
+import type { LevelConfig } from './config';
 import {
   FIELD_H,
   FIELD_W,
@@ -66,6 +67,7 @@ export class Game {
   /** Kalan dokunulmazlık süresi (saniye). */
   invulnerable = 0;
 
+  private config: LevelConfig = levelConfig(1);
   private loadout: Loadout;
   private stats: ShipStats;
   private readonly baseLives: number;
@@ -147,6 +149,7 @@ export class Game {
   startMission(index: number): void {
     const plan = missionPlan(index);
     const config = plan.config;
+    this.config = config;
     this.level = plan.index;
     this.targetPercent = this.targetOverride ?? plan.target;
     this.shots = [];
@@ -513,7 +516,7 @@ export class Game {
 
     if (enemy.kind === 'hunter') {
       const want = Math.atan2(this.player.y - enemy.y, this.player.x - enemy.x);
-      angle += clampAngle(want - angle, 1.5 * dt);
+      angle += clampAngle(want - angle, this.config.hunterTurn * dt);
     } else {
       // Patron serbest dolaşır, ara sıra rotasını kırar.
       angle += (this.rng.next() - 0.5) * 1.2 * dt;
@@ -576,7 +579,7 @@ export class Game {
   }
 
   private handleSpawning(dt: number): void {
-    const config = levelConfig(this.level);
+    const config = this.config;
     if (config.spawnInterval <= 0) return;
     this.spawnTimer -= dt;
     if (this.spawnTimer > 0) return;

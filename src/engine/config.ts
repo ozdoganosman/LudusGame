@@ -18,7 +18,7 @@ export const LEVEL_CLEAR_FREEZE = 0.4;
 /** Tek karede işlenecek en büyük zaman adımı — arka plandan dönüşte ışınlanmayı önler. */
 export const MAX_DT = 1 / 20;
 
-export const MAX_ENEMIES = 10;
+export const MAX_ENEMIES = 15;
 
 export type LevelConfig = {
   drifters: number;
@@ -26,23 +26,27 @@ export type LevelConfig = {
   drifterSpeed: number;
   hunterSpeed: number;
   bossSpeed: number;
+  /** Avcının dönüş çevikliği (radyan/saniye); yükseldikçe daha ısrarlı takip. */
+  hunterTurn: number;
   /** Yeni düşman doğma aralığı (saniye); 0 ise doğma yok. */
   spawnInterval: number;
 };
 
 /**
- * Zorluk eğrisi. İlk görev öğrenmeye açık olsun diye tek mikropla başlar;
- * virüsler 4. görevde sahneye girer. Kampanya bittikten sonra da artmaya
- * devam eder, üst sınırlar MAX_ENEMIES ile dengelenir.
+ * Zorluk eğrisi. İlk görev de dahil oyun baştan sıkıştırır: iki mikrop, hızlı
+ * bir patojen ve 23 saniyede bir yeni doğum. Virüsler 3. görevde sahneye girer.
+ * Kampanya bittikten sonra da artmaya devam eder; üst sınırlar MAX_ENEMIES ile
+ * dengelenir.
  */
 export function levelConfig(level: number): LevelConfig {
   const n = Math.max(1, level);
   return {
-    drifters: Math.min(7, 1 + Math.floor(n / 2)),
-    hunters: n < 4 ? 0 : Math.min(4, Math.floor((n - 2) / 2)),
-    drifterSpeed: 6.5 + n * 0.8,
-    hunterSpeed: 6 + n * 0.6,
-    bossSpeed: 8 + n * 0.9,
-    spawnInterval: Math.max(10, 34 - n * 2),
+    drifters: Math.min(8, 2 + Math.floor(n * 0.8)),
+    hunters: n < 3 ? 0 : Math.min(5, Math.floor((n - 1) / 2)),
+    drifterSpeed: 9 + n,
+    hunterSpeed: 8.5 + n * 0.8,
+    bossSpeed: 11 + n * 1.1,
+    hunterTurn: Math.min(3.2, 1.8 + n * 0.12),
+    spawnInterval: Math.max(7, 24 - n * 1.4),
   };
 }
